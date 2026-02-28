@@ -1194,6 +1194,12 @@ function getMonthFirstDay(month, year) {
   return `${year}-${m}-${day}`;
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}.${m}.${y}`;
+}
+
 function filterByMonth(expenses, month, year) {
   return expenses.filter(e => {
     const d = new Date(e.date);
@@ -1303,7 +1309,7 @@ function renderOverview(main) {
     recHtml += `<tr>
       <td>${e.desc}${e.note ? `<div class="expense-note">${e.note}</div>` : ''}</td>
       <td><span style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.8rem;color:${tab?.color||'#888'}"><span style="width:6px;height:6px;border-radius:50%;background:${tab?.color||'#888'};display:inline-block"></span>${tab?.name||'Unknown'}</span></td>
-      <td class="expense-date">${e.date}</td>
+      <td class="expense-date">${formatDate(e.date)}</td>
       <td class="expense-amount" style="color:var(--accent)">$${e.amount.toFixed(2)}</td>
     </tr>`;
   });
@@ -1372,7 +1378,7 @@ function renderTabView(main, tabId) {
     html += `<tr id="expense-row-${e.id}" class="expense-row-${state.selectedExpenseIds.includes(e.id) ? 'selected' : 'unselected'}">
       <td><input type="checkbox" class="expense-checkbox" value="${e.id}" onchange="updateExpenseCheckboxState()"></td>
       <td>${e.desc}</td>
-      <td class="expense-date">${e.date}</td>
+      <td class="expense-date">${formatDate(e.date)}</td>
       <td class="expense-note">${e.note||''}</td>
       <td class="expense-amount" style="color:${tab.color}">$${e.amount.toFixed(2)}</td>
       <td><button class="edit-expense-btn" onclick="openEditExpenseModal('${e.id}')" title="Edit expense"><i data-lucide="pencil"></i></button></td>
@@ -1538,7 +1544,7 @@ window.openCopyExpensesToCategoryModal = function() {
       item.className = 'category-copy-item';
       const tab = state.tabs.find(t => t.id === exp.tabId);
       item.innerHTML = `
-        <span class="expense-date">${exp.date}</span>
+        <span class="expense-date">${formatDate(exp.date)}</span>
         <span class="cat-name">${exp.desc}</span>
         <span class="expense-amount">$${exp.amount.toFixed(2)}</span>
       `;
@@ -1748,7 +1754,7 @@ window.openCopyExpensesModal = function(tabId) {
     item.className = 'category-copy-item';
     item.innerHTML = `
       <input type="checkbox" value="${exp.id}" class="cat-copy-checkbox">
-      <span class="expense-date">${exp.date}</span>
+      <span class="expense-date">${formatDate(exp.date)}</span>
       <span class="cat-name">${exp.desc}</span>
       <span class="expense-amount">$${exp.amount.toFixed(2)}</span>
     `;
