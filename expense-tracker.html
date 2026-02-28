@@ -927,6 +927,8 @@ const state = {
   activeTab: 'overview',
   selectedColor: COLORS[0],
   pendingCSV: [],
+  selectedMonth: new Date().getMonth(),
+  selectedYear: new Date().getFullYear(),
 };
 
 // Load local data
@@ -950,6 +952,26 @@ function launchApp() {
   document.getElementById('app').style.display = 'block';
   renderSidebar();
   renderContent();
+}
+
+// ─── HELPERS FOR MONTH FILTERING ─────────────────────────────────────────────
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function getMonthDisplayName(month, year) {
+  return `${monthNames[month]} ${year}`;
+}
+
+function getMonthFirstDay(month, year) {
+  const day = String(1).padStart(2, '0');
+  const m = String(month + 1).padStart(2, '0');
+  return `${year}-${m}-${day}`;
+}
+
+function filterByMonth(expenses, month, year) {
+  return expenses.filter(e => {
+    const d = new Date(e.date);
+    return d.getMonth() === month && d.getFullYear() === year;
+  });
 }
 
 // ─── RENDER ──────────────────────────────────────────────────────────────────
@@ -980,19 +1002,27 @@ function renderContent() {
 function renderOverview(main) {
   const total = state.expenses.reduce((s,e) => s + e.amount, 0);
   const now = new Date();
-  const thisMonth = state.expenses.filter(e => {
-    const d = new Date(e.date);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).reduce((s,e) => s + e.amount, 0);
-  const lastMonth = state.expenses.filter(e => {
-    const d = new Date(e.date);
-    const lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
-    return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
-  }).reduce((s,e) => s + e.amount, 0);
 
+  // Selected month expenses
+  const selectedMonthExpenses = filterByMonth(state.expenses, state.selectedMonth, state.selectedYear);
+  const thisMonth = selectedMonthExpenses.reduce((s,e) => s + e.amount, 0);
+
+  // Real last month (actual calendar month)
+  const lastMonthDate = new Date(state.selectedYear, state.selectedMonth - 1, 1);
+  const lastMonth = filterByMonth(state.expenses, lastMonthDate.getMonth(), lastMonthDate.getFullYear()).reduce((s,e) => s + e.amount, 0);
+
+  // Top category in selected month
   const topCat = state.tabs.map(t => ({
-    ...t, total: state.expenses.filter(e => e.tabId === t.id).reduce((s,e) => s+e.amount,0)
+    ...t, total: selectedMonthExpenses.filter(e => e.tabId === t.id).reduce((s,e) => s+e.amount,0)
   })).sort((a,b) => b.total - a.total)[0];
+
+  // Month selector UI
+  const monthSelector = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;flex-wrap:wrap">
+      <button class="btn-ghost" onclick="prevMonth()" style="padding:0.5rem 0.75rem">← Back</button>
+      <span style="font-weight:600;font-size:1.1rem;min-width:200px;text-align:center">${getMonthDisplayName(state.selectedMonth, state.selectedYear)}</span>
+      <button class="btn-ghost" onclick="nextMonth()" style="padding:0.5rem 0.75rem">Forward →</button>
+    </div>`;
 
   let cards = `
     <div class="overview-grid">
@@ -1018,11 +1048,11 @@ function renderOverview(main) {
       </div>
     </div>`;
 
-  // Category breakdown bars
+  // Category breakdown bars - filtered to selected month
   let bars = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem"><h3 style="font-family:DM Serif Display,serif;margin-bottom:1.25rem;font-size:1.2rem">Category Breakdown</h3>';
-  const totalForBar = Math.max(1, state.expenses.reduce((s,e) => s+e.amount, 0));
+  const totalForBar = Math.max(1, thisMonth);
   state.tabs.forEach(tab => {
-    const t = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
+    const t = selectedMonthExpenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
     const pct = Math.min(100, (t / totalForBar) * 100);
     bars += `<div style="margin-bottom:1rem">
       <div style="display:flex;justify-content:space-between;margin-bottom:0.35rem;font-size:0.85rem">
@@ -1036,10 +1066,10 @@ function renderOverview(main) {
   });
   bars += '</div>';
 
-  // Recent transactions
-  const recent = [...state.expenses].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,8);
+  // Recent transactions - filtered to selected month
+  const recent = [...selectedMonthExpenses].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,8);
   let recHtml = '<div class="expense-table-wrap"><table class="expense-table"><thead><tr><th>Description</th><th>Category</th><th>Date</th><th>Amount</th></tr></thead><tbody>';
-  if (recent.length === 0) recHtml += '<tr><td colspan="4"><div class="empty-state"><span>💸</span>No expenses yet. Add your first one!</div></td></tr>';
+  if (recent.length === 0) recHtml += '<tr><td colspan="4"><div class="empty-state"><span>💸</span>No expenses in this month. Add your first one!</div></td></tr>';
   recent.forEach(e => {
     const tab = state.tabs.find(t => t.id === e.tabId);
     recHtml += `<tr>
@@ -1052,6 +1082,7 @@ function renderOverview(main) {
   recHtml += '</tbody></table></div>';
 
   main.innerHTML = `
+    ${monthSelector}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
       <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Dashboard</h2>
       <button class="btn-small-accent" onclick="openCalendarModal()">📅 Calendar</button>
@@ -1062,14 +1093,25 @@ function renderOverview(main) {
 function renderTabView(main, tabId) {
   const tab = state.tabs.find(t => t.id === tabId);
   if (!tab) return;
-  const expenses = state.expenses.filter(e => e.tabId === tabId).sort((a,b) => new Date(b.date)-new Date(a.date));
-  const total = expenses.reduce((s,e) => s+e.amount, 0);
-  const thisMonth = (() => {
-    const now = new Date();
-    return expenses.filter(e => { const d=new Date(e.date); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); }).reduce((s,e)=>s+e.amount,0);
-  })();
+
+  // All expenses in this category
+  const allExpenses = state.expenses.filter(e => e.tabId === tabId).sort((a,b) => new Date(b.date)-new Date(a.date));
+  const total = allExpenses.reduce((s,e) => s+e.amount, 0);
+
+  // Expenses in selected month
+  const selectedMonthExpenses = filterByMonth(allExpenses, state.selectedMonth, state.selectedYear);
+  const thisMonth = selectedMonthExpenses.reduce((s,e) => s+e.amount, 0);
+
+  // Month selector UI
+  const monthSelector = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;flex-wrap:wrap">
+      <button class="btn-ghost" onclick="prevMonth()" style="padding:0.5rem 0.75rem">← Back</button>
+      <span style="font-weight:600;font-size:1.1rem;min-width:200px;text-align:center">${getMonthDisplayName(state.selectedMonth, state.selectedYear)}</span>
+      <button class="btn-ghost" onclick="nextMonth()" style="padding:0.5rem 0.75rem">Forward →</button>
+    </div>`;
 
   let html = `
+    ${monthSelector}
     <div class="tab-header">
       <div class="tab-title">
         <div class="tab-dot" style="background:${tab.color}"></div>
@@ -1082,20 +1124,20 @@ function renderTabView(main, tabId) {
     </div>
     <div class="overview-grid" style="margin-bottom:1.5rem">
       <div class="stat-card"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:${tab.color}"></div>
-        <div class="stat-label">Total</div><div class="stat-value">$${total.toFixed(2)}</div><div class="stat-sub">${expenses.length} transactions</div>
+        <div class="stat-label">Total</div><div class="stat-value">$${total.toFixed(2)}</div><div class="stat-sub">${allExpenses.length} transactions</div>
       </div>
       <div class="stat-card"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:${tab.color}"></div>
-        <div class="stat-label">This Month</div><div class="stat-value">$${thisMonth.toFixed(2)}</div>
+        <div class="stat-label">Selected Month</div><div class="stat-value">$${thisMonth.toFixed(2)}</div>
       </div>
     </div>
     <div class="expense-table-wrap"><table class="expense-table">
       <thead><tr><th>Description</th><th>Date</th><th>Note</th><th>Amount</th><th></th></tr></thead>
       <tbody>`;
 
-  if (expenses.length === 0) {
-    html += `<tr><td colspan="5"><div class="empty-state"><span>📂</span>No expenses in this category yet.</div></td></tr>`;
+  if (selectedMonthExpenses.length === 0) {
+    html += `<tr><td colspan="5"><div class="empty-state"><span>📂</span>No expenses in this category for ${getMonthDisplayName(state.selectedMonth, state.selectedYear)}.</div></td></tr>`;
   }
-  expenses.forEach(e => {
+  selectedMonthExpenses.forEach(e => {
     html += `<tr>
       <td>${e.desc}</td>
       <td class="expense-date">${e.date}</td>
@@ -1118,7 +1160,7 @@ window.switchTab = function(id) {
 
 window.openAddModal = function() {
   populateCategorySelect('exp-category');
-  document.getElementById('exp-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('exp-date').value = getMonthFirstDay(state.selectedMonth, state.selectedYear);
   document.getElementById('add-modal').classList.add('open');
 }
 window.openAddModalFor = function(tabId) {
@@ -1207,8 +1249,30 @@ window.closeCalendarModal = function() {
   document.getElementById('calendar-modal').classList.remove('open');
 }
 window.selectMonth = function(monthIndex, monthName) {
+  state.selectedMonth = monthIndex;
+  state.selectedYear = new Date().getFullYear();
   showToast(`Selected: ${monthName}`);
   closeCalendarModal();
+  renderSidebar();
+  renderContent();
+}
+window.prevMonth = function() {
+  state.selectedMonth--;
+  if (state.selectedMonth < 0) {
+    state.selectedMonth = 11;
+    state.selectedYear--;
+  }
+  renderSidebar();
+  renderContent();
+}
+window.nextMonth = function() {
+  state.selectedMonth++;
+  if (state.selectedMonth > 11) {
+    state.selectedMonth = 0;
+    state.selectedYear++;
+  }
+  renderSidebar();
+  renderContent();
 }
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
