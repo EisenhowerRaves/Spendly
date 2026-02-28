@@ -253,9 +253,34 @@
   .tab-title h2 {
     font-family: 'DM Serif Display', serif;
     font-size: 1.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
   }
   .tab-title .tab-dot {
     width: 12px; height: 12px; border-radius: 50%;
+  }
+  .cat-edit-hint {
+    display: inline-flex;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .cat-edit-hint svg { width: 16px; height: 16px; stroke-width: 2; }
+  .tab-title h2:hover .cat-edit-hint { opacity: 0.35; }
+  .cat-name-input {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.8rem;
+    font-weight: normal;
+    border: none;
+    border-bottom: 2px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+    outline: none;
+    padding: 0 2px;
+    min-width: 80px;
+    line-height: 1.2;
   }
   .tab-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
@@ -1317,7 +1342,10 @@ function renderTabView(main, tabId) {
     <div class="tab-header">
       <div class="tab-title">
         <div class="tab-dot" style="background:${tab.color}"></div>
-        <h2>${tab.name}</h2>
+        <h2 id="cat-name-display" onclick="startEditCategoryName('${tab.id}')" title="Click to rename">
+          <span id="cat-name-text">${tab.name}</span>
+          <span class="cat-edit-hint"><i data-lucide="pencil"></i></span>
+        </h2>
       </div>
       <div class="tab-actions">
         <button class="btn-ghost" id="delete-expenses-btn" onclick="showDeleteExpensesConfirmation()" title="Delete selected expenses" disabled><i data-lucide="trash-2"></i></button>
@@ -1773,6 +1801,70 @@ window.confirmCopyExpenses = async function() {
   renderContent();
   showToast(`${selectedIds.length} expenses duplicated`);
 }
+
+// ─── INLINE CATEGORY NAME EDITING ────────────────────────────────────────────
+window.startEditCategoryName = function(tabId) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (!tab) return;
+
+  const h2 = document.getElementById('cat-name-display');
+  if (!h2 || h2.querySelector('input')) return; // guard: already editing
+
+  const originalName = tab.name;
+  let committed = false;
+
+  // Measure helper: match the exact rendered width of the input text
+  const measureText = (text) => {
+    const ruler = document.createElement('span');
+    ruler.style.cssText = 'visibility:hidden;position:fixed;white-space:pre;font-family:"DM Serif Display",serif;font-size:1.8rem;';
+    ruler.textContent = text || ' ';
+    document.body.appendChild(ruler);
+    const w = ruler.offsetWidth;
+    document.body.removeChild(ruler);
+    return w;
+  };
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'cat-name-input';
+  input.value = originalName;
+  input.style.width = Math.max(80, measureText(originalName) + 16) + 'px';
+  input.addEventListener('input', () => {
+    input.style.width = Math.max(80, measureText(input.value) + 16) + 'px';
+  });
+
+  const commit = async () => {
+    if (committed) return;
+    committed = true;
+    const newName = input.value.trim();
+    if (newName && newName !== originalName) {
+      tab.name = newName;
+      saveLocal();
+      if (isFirebase) await fbSaveTab(tab);
+    }
+    renderSidebar();
+    renderContent();
+  };
+
+  const revert = () => {
+    if (committed) return;
+    committed = true;
+    renderContent();
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { e.preventDefault(); revert(); }
+  });
+  input.addEventListener('blur', commit);
+
+  // Swap heading content for the bare input
+  h2.innerHTML = '';
+  h2.style.cursor = 'default';
+  h2.appendChild(input);
+  input.focus();
+  input.select();
+};
 
 // ─── RENAME CATEGORY MODAL ────────────────────────────────────────────────
 window.openRenameCategoryModal = function(tabId, currentName) {
