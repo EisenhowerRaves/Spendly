@@ -586,6 +586,40 @@
     text-align: right;
   }
 
+  /* EXPENSE TABLE CHECKBOXES & EDITING */
+  .expense-checkbox {
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+  }
+
+  .expense-row-selected {
+    background: rgba(143, 179, 0, 0.05) !important;
+  }
+
+  .btn-ghost:disabled,
+  .btn-small-accent:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .edit-expense-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+
+  .edit-expense-btn:hover {
+    color: var(--accent);
+  }
+
   /* TOAST */
   .toast {
     position: fixed;
@@ -897,6 +931,53 @@
   </div>
 </div>
 
+<!-- EDIT EXPENSE MODAL -->
+<div class="modal-overlay" id="edit-expense-modal">
+  <div class="modal">
+    <h3>Edit Expense</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="edit-exp-desc" placeholder="e.g. Woolworths groceries" autofocus>
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="edit-exp-amount" placeholder="0.00" step="0.01" min="0">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="edit-exp-category"></select>
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="edit-exp-date">
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="edit-exp-note" placeholder="Any extra detail...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditExpenseModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveEditedExpense()" style="flex:2">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- COPY EXPENSES TO CATEGORY MODAL -->
+<div class="modal-overlay" id="copy-expenses-to-category-modal">
+  <div class="modal">
+    <h3>Copy Selected Expenses</h3>
+    <div id="copy-preview-list" style="max-height:200px;overflow-y:auto;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px;padding:0.5rem"></div>
+    <div class="form-group">
+      <label>Copy to Category</label>
+      <select id="copy-target-category"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCopyExpensesToCategoryModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmCopyExpensesToCategory()" style="flex:2">Copy</button>
+    </div>
+  </div>
+</div>
+
 <!-- BOTTOM NAV (mobile) -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bottom-nav-item active" id="bn-overview" onclick="switchTab('overview')">
@@ -1002,15 +1083,19 @@ async function fbDeleteExpense(id) {
   if (!isFirebase) return;
   await deleteDoc(doc(db, 'expenses', id));
 }
+async function fbUpdateExpense(expense) {
+  if (!isFirebase) return;
+  await setDoc(doc(db, 'expenses', expense.id), expense);
+}
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
-const COLORS = ['#60a5fa','#34d399','#f472b6','#a78bfa','#fb923c','#fbbf24','#38bdf8','#f87171','#4ade80','#e879f9'];
+const COLORS = ['#60a5fa','#34d399','#f472b6','#a78bfa','#fb923c','#fbbf24','#38bdf8','#f87171','#4ade80','#e879f9','#a8a29e'];
 const DEFAULT_TABS = [
   {id:'housing', name:'Housing / Bills', color:'#60a5fa'},
   {id:'food', name:'Food & Groceries', color:'#34d399'},
   {id:'transport', name:'Transport', color:'#f472b6'},
   {id:'subscriptions', name:'Subscriptions', color:'#a78bfa'},
-  {id:'health', name:'Health', color:'#fb923c'},
+  {id:'health', name:'Health', color:'#a8a29e'},
   {id:'entertainment', name:'Entertainment', color:'#fbbf24'},
 ];
 
@@ -1022,6 +1107,8 @@ const state = {
   pendingCSV: [],
   selectedMonth: new Date().getMonth(),
   selectedYear: new Date().getFullYear(),
+  selectedExpenseIds: [],
+  editingExpenseId: null,
 };
 
 // Load local data
@@ -1076,7 +1163,7 @@ function renderSidebar() {
     const el = document.createElement('div');
     el.className = 'sidebar-item' + (state.activeTab === tab.id ? ' active' : '');
     el.onclick = () => switchTab(tab.id);
-    el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total">$${total.toFixed(0)}</span><button class="edit-tab-btn" onclick="event.stopPropagation();openRenameCategoryModal('${tab.id}','${tab.name}');" style="margin-left:auto;padding:0.25rem;border:none;background:none;cursor:pointer;font-size:0.8rem;color:var(--muted);transition:color 0.2s" title="Rename category">✏️</button>`;
+    el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total">$${total.toFixed(0)}</span>`;
     container.appendChild(el);
   });
   // update overview nav
@@ -1178,7 +1265,6 @@ function renderOverview(main) {
     ${monthSelector}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
       <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Dashboard</h2>
-      <button class="btn-small-accent" onclick="openCalendarModal()">📅 Calendar</button>
     </div>
     ${cards}${bars}<h3 style="font-family:DM Serif Display,serif;font-size:1.2rem;margin-bottom:1rem">Recent Transactions</h3>${recHtml}`;
 }
@@ -1211,8 +1297,8 @@ function renderTabView(main, tabId) {
         <h2>${tab.name}</h2>
       </div>
       <div class="tab-actions">
-        <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete categories">🗑️</button>
-        <button class="btn-ghost" onclick="openCopyExpensesModal('${tab.id}')" title="Duplicate expenses">📋</button>
+        <button class="btn-ghost" id="delete-expenses-btn" onclick="showDeleteExpensesConfirmation()" title="Delete selected expenses" disabled>🗑️</button>
+        <button class="btn-ghost" id="copy-expenses-btn" onclick="openCopyExpensesToCategoryModal()" title="Copy selected expenses" disabled>📋</button>
         <button class="btn-small-accent" onclick="openAddModalFor('${tab.id}')">+ Add Expense</button>
       </div>
     </div>
@@ -1225,19 +1311,20 @@ function renderTabView(main, tabId) {
       </div>
     </div>
     <div class="expense-table-wrap"><table class="expense-table">
-      <thead><tr><th>Description</th><th>Date</th><th>Note</th><th>Amount</th><th></th></tr></thead>
+      <thead><tr><th style="width:30px"><input type="checkbox" id="select-all-expenses" onchange="toggleSelectAllExpensesInTable()"></th><th>Description</th><th>Date</th><th>Note</th><th>Amount</th><th style="width:50px"></th></tr></thead>
       <tbody>`;
 
   if (selectedMonthExpenses.length === 0) {
-    html += `<tr><td colspan="5"><div class="empty-state"><span>📂</span>No expenses in this category for ${getMonthDisplayName(state.selectedMonth, state.selectedYear)}.</div></td></tr>`;
+    html += `<tr><td colspan="6"><div class="empty-state"><span>📂</span>No expenses in this category for ${getMonthDisplayName(state.selectedMonth, state.selectedYear)}.</div></td></tr>`;
   }
   selectedMonthExpenses.forEach(e => {
-    html += `<tr>
+    html += `<tr id="expense-row-${e.id}" class="expense-row-${state.selectedExpenseIds.includes(e.id) ? 'selected' : 'unselected'}">
+      <td><input type="checkbox" class="expense-checkbox" value="${e.id}" onchange="updateExpenseCheckboxState()"></td>
       <td>${e.desc}</td>
       <td class="expense-date">${e.date}</td>
       <td class="expense-note">${e.note||''}</td>
       <td class="expense-amount" style="color:${tab.color}">$${e.amount.toFixed(2)}</td>
-      <td><button class="delete-btn" onclick="deleteExpense('${e.id}')">✕</button></td>
+      <td><button class="edit-expense-btn" onclick="openEditExpenseModal('${e.id}')" title="Edit expense">✏️</button></td>
     </tr>`;
   });
   html += '</tbody></table></div>';
@@ -1303,6 +1390,220 @@ window.deleteTab = function(id) {
   renderSidebar();
   renderContent();
   showToast('Category deleted');
+}
+
+// ─── EXPENSE TABLE CHECKBOX & SELECTION ────────────────────────────────────────
+window.getSelectedExpenseCount = function() {
+  return state.selectedExpenseIds.length;
+}
+
+window.toggleSelectAllExpensesInTable = function() {
+  const selectAllCheckbox = document.getElementById('select-all-expenses');
+  const individualCheckboxes = document.querySelectorAll('.expense-checkbox');
+  if (selectAllCheckbox.checked) {
+    state.selectedExpenseIds = Array.from(individualCheckboxes).map(cb => cb.value);
+    individualCheckboxes.forEach(cb => cb.checked = true);
+  } else {
+    state.selectedExpenseIds = [];
+    individualCheckboxes.forEach(cb => cb.checked = false);
+  }
+  updateExpenseCheckboxState();
+}
+
+window.updateExpenseCheckboxState = function() {
+  const checkboxes = document.querySelectorAll('.expense-checkbox');
+  const selectAllCheckbox = document.getElementById('select-all-expenses');
+
+  // Update selected IDs
+  state.selectedExpenseIds = Array.from(document.querySelectorAll('.expense-checkbox:checked')).map(cb => cb.value);
+
+  // Update row highlighting
+  document.querySelectorAll('[id^="expense-row-"]').forEach(row => {
+    if (state.selectedExpenseIds.some(id => row.id === `expense-row-${id}`)) {
+      row.classList.add('expense-row-selected');
+    } else {
+      row.classList.remove('expense-row-selected');
+    }
+  });
+
+  // Update button states
+  const hasSelection = state.selectedExpenseIds.length > 0;
+  document.getElementById('delete-expenses-btn').disabled = !hasSelection;
+  document.getElementById('copy-expenses-btn').disabled = !hasSelection;
+
+  // Update select all checkbox state
+  selectAllCheckbox.checked = state.selectedExpenseIds.length === checkboxes.length && checkboxes.length > 0;
+}
+
+// ─── DELETE EXPENSES (BULK) ────────────────────────────────────────────────────
+window.showDeleteExpensesConfirmation = function() {
+  const count = getSelectedExpenseCount();
+  if (count === 0) {
+    showToast('Select at least one expense to delete');
+    return;
+  }
+  if (confirm(`Are you sure you want to delete ${count} selected expense(s)? This cannot be undone.`)) {
+    deleteSelectedExpenses();
+  }
+}
+
+window.deleteSelectedExpenses = async function() {
+  const count = state.selectedExpenseIds.length;
+  for (const id of state.selectedExpenseIds) {
+    state.expenses = state.expenses.filter(e => e.id !== id);
+    if (isFirebase) await fbDeleteExpense(id);
+  }
+  state.selectedExpenseIds = [];
+  saveLocal();
+  renderSidebar();
+  renderContent();
+  showToast(`${count} expense(s) deleted`);
+}
+
+// ─── COPY EXPENSES TO CATEGORY (BULK) ──────────────────────────────────────────
+window.openCopyExpensesToCategoryModal = function() {
+  const count = getSelectedExpenseCount();
+  if (count === 0) {
+    showToast('Select at least one expense to copy');
+    return;
+  }
+
+  // Populate preview list
+  const previewList = document.getElementById('copy-preview-list');
+  previewList.innerHTML = '';
+  state.selectedExpenseIds.forEach(id => {
+    const exp = state.expenses.find(e => e.id === id);
+    if (exp) {
+      const item = document.createElement('div');
+      item.className = 'category-copy-item';
+      const tab = state.tabs.find(t => t.id === exp.tabId);
+      item.innerHTML = `
+        <span class="expense-date">${exp.date}</span>
+        <span class="cat-name">${exp.desc}</span>
+        <span class="expense-amount">$${exp.amount.toFixed(2)}</span>
+      `;
+      previewList.appendChild(item);
+    }
+  });
+
+  // Populate category dropdown
+  const categorySelect = document.getElementById('copy-target-category');
+  categorySelect.innerHTML = '';
+  state.tabs.forEach(tab => {
+    const option = document.createElement('option');
+    option.value = tab.id;
+    option.textContent = tab.name;
+    categorySelect.appendChild(option);
+  });
+
+  document.getElementById('copy-expenses-to-category-modal').classList.add('open');
+}
+
+window.closeCopyExpensesToCategoryModal = function() {
+  document.getElementById('copy-expenses-to-category-modal').classList.remove('open');
+}
+
+window.confirmCopyExpensesToCategory = async function() {
+  const targetCategoryId = document.getElementById('copy-target-category').value;
+  if (!targetCategoryId) {
+    showToast('Select a target category');
+    return;
+  }
+
+  const targetTab = state.tabs.find(t => t.id === targetCategoryId);
+  let copiedCount = 0;
+
+  for (const id of state.selectedExpenseIds) {
+    const original = state.expenses.find(e => e.id === id);
+    if (original) {
+      const duplicate = {
+        id: crypto.randomUUID(),
+        desc: original.desc,
+        amount: original.amount,
+        tabId: targetCategoryId,
+        date: original.date,
+        note: original.note
+      };
+      state.expenses.push(duplicate);
+      if (isFirebase) await fbSaveExpense(duplicate);
+      copiedCount++;
+    }
+  }
+
+  state.selectedExpenseIds = [];
+  saveLocal();
+  closeCopyExpensesToCategoryModal();
+  renderSidebar();
+  renderContent();
+  showToast(`${copiedCount} expense(s) copied to ${targetTab.name}`);
+}
+
+// ─── EDIT EXPENSE ──────────────────────────────────────────────────────────────
+window.openEditExpenseModal = function(expenseId) {
+  const expense = state.expenses.find(e => e.id === expenseId);
+  if (!expense) return;
+
+  state.editingExpenseId = expenseId;
+  populateEditExpenseForm(expense);
+
+  // Populate category dropdown
+  const categorySelect = document.getElementById('edit-exp-category');
+  categorySelect.innerHTML = '';
+  state.tabs.forEach(tab => {
+    const option = document.createElement('option');
+    option.value = tab.id;
+    option.textContent = tab.name;
+    if (tab.id === expense.tabId) option.selected = true;
+    categorySelect.appendChild(option);
+  });
+
+  document.getElementById('edit-expense-modal').classList.add('open');
+}
+
+window.closeEditExpenseModal = function() {
+  document.getElementById('edit-expense-modal').classList.remove('open');
+  state.editingExpenseId = null;
+  document.getElementById('edit-exp-desc').value = '';
+  document.getElementById('edit-exp-amount').value = '';
+  document.getElementById('edit-exp-date').value = '';
+  document.getElementById('edit-exp-note').value = '';
+}
+
+window.populateEditExpenseForm = function(expense) {
+  document.getElementById('edit-exp-desc').value = expense.desc;
+  document.getElementById('edit-exp-amount').value = expense.amount;
+  document.getElementById('edit-exp-date').value = expense.date;
+  document.getElementById('edit-exp-note').value = expense.note || '';
+  document.getElementById('edit-exp-desc').focus();
+}
+
+window.saveEditedExpense = async function() {
+  const desc = document.getElementById('edit-exp-desc').value.trim();
+  const amount = parseFloat(document.getElementById('edit-exp-amount').value);
+  const categoryId = document.getElementById('edit-exp-category').value;
+  const date = document.getElementById('edit-exp-date').value;
+  const note = document.getElementById('edit-exp-note').value.trim();
+
+  if (!desc || isNaN(amount) || amount <= 0 || !date) {
+    showToast('Please fill in all required fields');
+    return;
+  }
+
+  const expense = state.expenses.find(e => e.id === state.editingExpenseId);
+  if (!expense) return;
+
+  expense.desc = desc;
+  expense.amount = amount;
+  expense.tabId = categoryId;
+  expense.date = date;
+  expense.note = note;
+
+  saveLocal();
+  if (isFirebase) await fbUpdateExpense(expense);
+  closeEditExpenseModal();
+  renderSidebar();
+  renderContent();
+  showToast('Expense updated');
 }
 
 // ─── NEW TAB ─────────────────────────────────────────────────────────────────
@@ -1680,7 +1981,7 @@ function showToast(msg) {
 }
 
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','calendar-modal','delete-categories-modal','copy-expenses-modal','rename-category-modal','mobile-cat-sheet'].forEach(id => {
+['add-modal','csv-modal','newtab-modal','calendar-modal','delete-categories-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','mobile-cat-sheet'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
