@@ -881,17 +881,6 @@
     </div>
     <div class="modal-actions" style="margin-top:2rem">
       <button class="btn-cancel" onclick="closeCalendarModal()">Close</button>
-</div>
-</div>
-
-<!-- DELETE CATEGORIES MODAL -->
-<div class="modal-overlay" id="delete-categories-modal">
-  <div class="modal">
-    <h3>Delete Categories</h3>
-    <div id="delete-categories-list" style="max-height:300px;overflow-y:auto;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeDeleteCategoriesModal()">Cancel</button>
-      <button class="btn-accent" id="delete-btn" onclick="confirmDeleteCategories()" style="flex:2;background:#ff6b6b">Delete Selected</button>
     </div>
   </div>
 </div>
@@ -1695,60 +1684,6 @@ window.nextMonth = function() {
   renderContent();
 }
 
-// ─── DELETE CATEGORIES MODAL ──────────────────────────────────────────────
-window.openDeleteCategoriesModal = function() {
-  const list = document.getElementById('delete-categories-list');
-  list.innerHTML = '';
-  state.tabs.forEach(tab => {
-    if (tab.id === state.activeTab) return; // Skip current category
-    const expenseCount = state.expenses.filter(e => e.tabId === tab.id).length;
-    const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
-    const item = document.createElement('div');
-    item.className = 'category-delete-item';
-    item.innerHTML = `
-      <input type="checkbox" value="${tab.id}" class="cat-delete-checkbox">
-      <div class="dot" style="background:${tab.color}"></div>
-      <span class="cat-name">${tab.name}</span>
-      <span class="cat-stats">${expenseCount} expenses • $${total.toFixed(2)}</span>
-    `;
-    list.appendChild(item);
-  });
-  document.getElementById('delete-categories-modal').classList.add('open');
-}
-window.closeDeleteCategoriesModal = function() {
-  document.getElementById('delete-categories-modal').classList.remove('open');
-}
-window.confirmDeleteCategories = async function() {
-  const checkboxes = document.querySelectorAll('.cat-delete-checkbox:checked');
-  if (checkboxes.length === 0) {
-    showToast('Select at least one category to delete');
-    return;
-  }
-  const selectedIds = Array.from(checkboxes).map(cb => cb.value);
-  const expenseCount = state.expenses.filter(e => selectedIds.includes(e.tabId)).length;
-  if (!confirm(`Delete ${selectedIds.length} categories and ${expenseCount} expenses? This cannot be undone.`)) return;
-  // Delete categories
-  state.tabs = state.tabs.filter(t => !selectedIds.includes(t.id));
-  // Delete expenses
-  state.expenses = state.expenses.filter(e => !selectedIds.includes(e.tabId));
-  saveLocal();
-  if (isFirebase) {
-    for (const id of selectedIds) {
-      const tabsToDelete = state.tabs.filter(t => t.id === id);
-      const expensesToDelete = state.expenses.filter(e => e.tabId === id);
-      // Firebase deletion happens via realtime updates
-    }
-  }
-  closeDeleteCategoriesModal();
-  // Navigate to overview if current category was deleted
-  if (selectedIds.includes(state.activeTab)) {
-    state.activeTab = 'overview';
-  }
-  renderSidebar();
-  renderContent();
-  showToast(`${selectedIds.length} categories deleted`);
-}
-
 // ─── COPY/DUPLICATE EXPENSES MODAL ────────────────────────────────────────
 window.openCopyExpensesModal = function(tabId) {
   const tab = state.tabs.find(t => t.id === tabId);
@@ -2006,7 +1941,7 @@ function showToast(msg) {
 }
 
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','calendar-modal','delete-categories-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','delete-expenses-confirm-modal','mobile-cat-sheet'].forEach(id => {
+['add-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','delete-expenses-confirm-modal','mobile-cat-sheet'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
