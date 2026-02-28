@@ -511,6 +511,32 @@
   }
   .color-swatch.selected { border-color: white; }
 
+  /* CALENDAR MODAL */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+  .month-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text);
+    transition: all 0.2s;
+  }
+  .month-btn:hover {
+    border-color: var(--accent);
+    background: var(--surface2);
+    color: var(--accent);
+    transform: translateY(-2px);
+  }
+
   /* TOAST */
   .toast {
     position: fixed;
@@ -747,6 +773,30 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeNewTabModal()">Cancel</button>
       <button class="btn-accent" onclick="createTab()" style="flex:2">Create Category</button>
+    </div>
+  </div>
+</div>
+
+<!-- CALENDAR MODAL -->
+<div class="modal-overlay" id="calendar-modal">
+  <div class="modal">
+    <h3>Select Month</h3>
+    <div class="calendar-grid">
+      <button class="month-btn" onclick="selectMonth(0, 'Jan')">Jan</button>
+      <button class="month-btn" onclick="selectMonth(1, 'Feb')">Feb</button>
+      <button class="month-btn" onclick="selectMonth(2, 'Mar')">Mar</button>
+      <button class="month-btn" onclick="selectMonth(3, 'Apr')">Apr</button>
+      <button class="month-btn" onclick="selectMonth(4, 'May')">May</button>
+      <button class="month-btn" onclick="selectMonth(5, 'Jun')">Jun</button>
+      <button class="month-btn" onclick="selectMonth(6, 'Jul')">Jul</button>
+      <button class="month-btn" onclick="selectMonth(7, 'Aug')">Aug</button>
+      <button class="month-btn" onclick="selectMonth(8, 'Sept')">Sept</button>
+      <button class="month-btn" onclick="selectMonth(9, 'Oct')">Oct</button>
+      <button class="month-btn" onclick="selectMonth(10, 'Nov')">Nov</button>
+      <button class="month-btn" onclick="selectMonth(11, 'Dec')">Dec</button>
+    </div>
+    <div class="modal-actions" style="margin-top:2rem">
+      <button class="btn-cancel" onclick="closeCalendarModal()">Close</button>
     </div>
   </div>
 </div>
@@ -998,7 +1048,12 @@ function renderOverview(main) {
   });
   recHtml += '</tbody></table></div>';
 
-  main.innerHTML = `<h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin-bottom:1.5rem">Dashboard</h2>${cards}${bars}<h3 style="font-family:DM Serif Display,serif;font-size:1.2rem;margin-bottom:1rem">Recent Transactions</h3>${recHtml}`;
+  main.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+      <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Dashboard</h2>
+      <button class="btn-small-accent" onclick="openCalendarModal()">📅 Calendar</button>
+    </div>
+    ${cards}${bars}<h3 style="font-family:DM Serif Display,serif;font-size:1.2rem;margin-bottom:1rem">Recent Transactions</h3>${recHtml}`;
 }
 
 function renderTabView(main, tabId) {
@@ -1139,6 +1194,18 @@ window.createTab = async function() {
   renderSidebar();
   renderContent();
   showToast('Category created ✓');
+}
+
+// ─── CALENDAR ─────────────────────────────────────────────────────────────────
+window.openCalendarModal = function() {
+  document.getElementById('calendar-modal').classList.add('open');
+}
+window.closeCalendarModal = function() {
+  document.getElementById('calendar-modal').classList.remove('open');
+}
+window.selectMonth = function(monthIndex, monthName) {
+  showToast(`Selected: ${monthName}`);
+  closeCalendarModal();
 }
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
@@ -1293,7 +1360,7 @@ function showToast(msg) {
 }
 
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','mobile-cat-sheet'].forEach(id => {
+['add-modal','csv-modal','newtab-modal','calendar-modal','mobile-cat-sheet'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
