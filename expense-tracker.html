@@ -1372,7 +1372,7 @@ function renderTabView(main, tabId) {
       <tbody>`;
 
   if (selectedMonthExpenses.length === 0) {
-    html += `<tr><td colspan="6"><div class="empty-state"><span>📂</span>No expenses in this category for ${getMonthDisplayName(state.selectedMonth, state.selectedYear)}.</div></td></tr>`;
+    html += `<tr><td colspan="6"><div class="empty-state"><span><i data-lucide="folder-open"></i></span>No expenses in this category for ${getMonthDisplayName(state.selectedMonth, state.selectedYear)}.</div></td></tr>`;
   }
   selectedMonthExpenses.forEach(e => {
     html += `<tr id="expense-row-${e.id}" class="expense-row-${state.selectedExpenseIds.includes(e.id) ? 'selected' : 'unselected'}">
