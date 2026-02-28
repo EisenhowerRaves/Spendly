@@ -8,6 +8,7 @@
 <meta http-equiv="Expires" content="0" />
 <title>Spendly — Your Money, Sorted</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
   :root {
     --bg: #ffffff;
@@ -708,6 +709,11 @@
     }
     .bottom-nav-fab:active { transform: scale(0.93); }
   }
+
+  /* LUCIDE ICONS */
+  .btn-ghost svg, .btn-cancel svg { width: 16px; height: 16px; stroke-width: 1.75; vertical-align: middle; }
+  .edit-expense-btn svg { width: 15px; height: 15px; stroke-width: 1.75; vertical-align: middle; }
+  .nav-icon svg { width: 22px; height: 22px; stroke-width: 1.5; }
 </style>
 </head>
 <body>
@@ -742,9 +748,10 @@
         <div class="dot"></div>
         <span id="fb-status-text">Demo</span>
       </div>
-      <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV">↑</button>
-      <button class="btn-ghost" onclick="openCalendarModal()" title="Calendar">📅</button>
-      <button class="btn-small-accent" onclick="openAddModal()">+ Add Expense</button>
+      <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV"><i data-lucide="upload"></i></button>
+      <button class="btn-ghost" onclick="openCalendarModal()" title="Calendar"><i data-lucide="calendar"></i></button>
+      <button class="btn-ghost" onclick="openAddModal()"><i data-lucide="plus"></i></button>
+      <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete Categories"><i data-lucide="trash-2"></i></button>
       <button class="btn-ghost" onclick="toggleChat()">🤖 AI Assistant</button>
     </div>
   </header>
@@ -780,7 +787,7 @@
       <button class="chat-close" onclick="toggleChat()">✕</button>
     </div>
     <div class="chat-messages" id="chat-messages">
-      <div class="msg ai">Hey! I'm your AI spending assistant. Ask me anything about your expenses — "Where am I overspending?", "Summarise this month", "What's my biggest category?" — I've got context on all your data.</div>
+      <div class="msg ai">G'day mate I'm your fair-dinkum AI spending assistant. Ask me anything about your expenses — "Where am I overspending?", "Summarise this month", "What's my biggest category?" — I'll get you sorted.</div>
     </div>
     <div class="chat-input-row">
       <textarea class="chat-input" id="chat-input" placeholder="Ask about your spending..." rows="1" onkeydown="handleChatKey(event)"></textarea>
@@ -979,14 +986,27 @@
   </div>
 </div>
 
+<!-- DELETE CATEGORIES MODAL -->
+<div class="modal-overlay" id="delete-categories-modal">
+  <div class="modal">
+    <h3>Delete Categories</h3>
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem">Select the categories you want to delete. All expenses within them will also be deleted.</p>
+    <div id="delete-categories-list" style="display:flex;flex-direction:column;gap:0.5rem;max-height:50vh;overflow-y:auto;margin-bottom:0.5rem"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteCategoriesModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteCategories()" style="flex:2;background:#ff4444;color:#fff">Delete Selected</button>
+    </div>
+  </div>
+</div>
+
 <!-- BOTTOM NAV (mobile) -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bottom-nav-item active" id="bn-overview" onclick="switchTab('overview')">
-    <span class="nav-icon">📊</span>
+    <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>
     <span class="nav-label">Dashboard</span>
   </button>
   <button class="bottom-nav-item" id="bn-cats" onclick="openMobileCatSheet()">
-    <span class="nav-icon">📂</span>
+    <span class="nav-icon">🗂️</span>
     <span class="nav-label">Categories</span>
   </button>
   <button class="bottom-nav-fab" onclick="openAddModal()">+</button>
@@ -1091,9 +1111,9 @@ async function fbUpdateExpense(expense) {
 }
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
-const COLORS = ['#60a5fa','#34d399','#f472b6','#a78bfa','#fb923c','#fbbf24','#38bdf8','#f87171','#4ade80','#e879f9','#a8a29e'];
+const COLORS = ['#60a5fa','#34d399','#f472b6','#a78bfa','#fb923c','#fbbf24','#38bdf8','#f87171','#4ade80','#e879f9','#a8a29e','#22d3ee','#818cf8','#fb7185','#451a03','#d4a373','#b45309'];
 const DEFAULT_TABS = [
-  {id:'housing', name:'Housing / Bills', color:'#60a5fa'},
+  {id:'housing', name:'Housing', color:'#60a5fa'},
   {id:'food', name:'Food & Groceries', color:'#34d399'},
   {id:'transport', name:'Transport', color:'#f472b6'},
   {id:'subscriptions', name:'Subscriptions', color:'#a78bfa'},
@@ -1179,6 +1199,7 @@ function renderContent() {
   } else {
     renderTabView(main, state.activeTab);
   }
+  lucide.createIcons();
 }
 
 function renderOverview(main) {
@@ -1299,8 +1320,8 @@ function renderTabView(main, tabId) {
         <h2>${tab.name}</h2>
       </div>
       <div class="tab-actions">
-        <button class="btn-ghost" id="delete-expenses-btn" onclick="showDeleteExpensesConfirmation()" title="Delete selected expenses" disabled>🗑️</button>
-        <button class="btn-ghost" id="copy-expenses-btn" onclick="openCopyExpensesToCategoryModal()" title="Copy selected expenses" disabled>📋</button>
+        <button class="btn-ghost" id="delete-expenses-btn" onclick="showDeleteExpensesConfirmation()" title="Delete selected expenses" disabled><i data-lucide="trash-2"></i></button>
+        <button class="btn-ghost" id="copy-expenses-btn" onclick="openCopyExpensesToCategoryModal()" title="Copy selected expenses" disabled><i data-lucide="copy"></i></button>
         <button class="btn-small-accent" onclick="openAddModalFor('${tab.id}')">+ Add Expense</button>
       </div>
     </div>
@@ -1326,7 +1347,7 @@ function renderTabView(main, tabId) {
       <td class="expense-date">${e.date}</td>
       <td class="expense-note">${e.note||''}</td>
       <td class="expense-amount" style="color:${tab.color}">$${e.amount.toFixed(2)}</td>
-      <td><button class="edit-expense-btn" onclick="openEditExpenseModal('${e.id}')" title="Edit expense">✏️</button></td>
+      <td><button class="edit-expense-btn" onclick="openEditExpenseModal('${e.id}')" title="Edit expense"><i data-lucide="pencil"></i></button></td>
     </tr>`;
   });
   html += '</tbody></table></div>';
@@ -1940,8 +1961,62 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// ─── DELETE CATEGORIES MODAL ─────────────────────────────────────────────────
+window.openDeleteCategoriesModal = function() {
+  const list = document.getElementById('delete-categories-list');
+  list.innerHTML = '';
+  if (state.tabs.length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;text-align:center;padding:1rem">No categories to delete.</p>';
+  } else {
+    state.tabs.forEach(tab => {
+      const count = state.expenses.filter(e => e.tabId === tab.id).length;
+      const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0.75rem;border-radius:8px;cursor:pointer;border:1px solid var(--border);transition:background 0.15s;';
+      row.innerHTML = `
+        <input type="checkbox" data-tab-id="${tab.id}" style="width:16px;height:16px;cursor:pointer;accent-color:#ff4444">
+        <span style="width:10px;height:10px;border-radius:50%;background:${tab.color};flex-shrink:0"></span>
+        <span style="flex:1;font-size:0.9rem">${tab.name}</span>
+        <span style="font-size:0.78rem;color:var(--muted)">${count} expense${count!==1?'s':''} · $${total.toFixed(2)}</span>
+      `;
+      list.appendChild(row);
+    });
+  }
+  document.getElementById('delete-categories-modal').classList.add('open');
+}
+
+window.closeDeleteCategoriesModal = function() {
+  document.getElementById('delete-categories-modal').classList.remove('open');
+}
+
+window.confirmDeleteCategories = async function() {
+  const checked = document.querySelectorAll('#delete-categories-list input[type="checkbox"]:checked');
+  if (checked.length === 0) { showToast('Select at least one category'); return; }
+  const idsToDelete = Array.from(checked).map(cb => cb.dataset.tabId);
+  for (const id of idsToDelete) {
+    const expsToDelete = state.expenses.filter(e => e.tabId === id);
+    for (const exp of expsToDelete) {
+      if (isFirebase) await fbDeleteExpense(exp.id);
+    }
+    if (isFirebase) {
+      try {
+        const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+        await deleteDoc(doc(db, 'tabs', id));
+      } catch(e) { console.warn('Firebase tab delete error:', e); }
+    }
+    state.tabs = state.tabs.filter(t => t.id !== id);
+    state.expenses = state.expenses.filter(e => e.tabId !== id);
+  }
+  saveLocal();
+  if (idsToDelete.includes(state.activeTab)) state.activeTab = 'overview';
+  closeDeleteCategoriesModal();
+  renderSidebar();
+  renderContent();
+  showToast(`${idsToDelete.length} categor${idsToDelete.length!==1?'ies':'y'} deleted`);
+}
+
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','delete-expenses-confirm-modal','mobile-cat-sheet'].forEach(id => {
+['add-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','delete-expenses-confirm-modal','delete-categories-modal','mobile-cat-sheet'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
