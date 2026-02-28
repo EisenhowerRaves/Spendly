@@ -1297,7 +1297,7 @@ function renderOverview(main) {
   // Recent transactions - filtered to selected month
   const recent = [...selectedMonthExpenses].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,8);
   let recHtml = '<div class="expense-table-wrap"><table class="expense-table"><thead><tr><th>Description</th><th>Category</th><th>Date</th><th>Amount</th></tr></thead><tbody>';
-  if (recent.length === 0) recHtml += '<tr><td colspan="4"><div class="empty-state"><span>💸</span>No expenses in this month. Add your first one!</div></td></tr>';
+  if (recent.length === 0) recHtml += '<tr><td colspan="4"><div class="empty-state"><span><i data-lucide="banknote-arrow-up"></i></span>No expenses this month. Add your first one!</div></td></tr>';
   recent.forEach(e => {
     const tab = state.tabs.find(t => t.id === e.tabId);
     recHtml += `<tr>
