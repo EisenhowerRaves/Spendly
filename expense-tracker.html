@@ -826,16 +826,16 @@
   <div class="modal">
     <h3>Add Expense</h3>
     <div class="form-group">
+      <label>Category</label>
+      <select id="exp-category"></select>
+    </div>
+    <div class="form-group">
       <label>Description</label>
       <input type="text" id="exp-desc" placeholder="e.g. Woolworths groceries" />
     </div>
     <div class="form-group">
       <label>Amount (AUD $)</label>
       <input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0" />
-    </div>
-    <div class="form-group">
-      <label>Category</label>
-      <select id="exp-category"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -991,6 +991,10 @@
     <div class="form-group">
       <label>Copy to Category</label>
       <select id="copy-target-category"></select>
+    </div>
+    <div class="form-group">
+      <label>Select Date</label>
+      <input type="date" id="copy-target-date">
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeCopyExpensesToCategoryModal()">Cancel</button>
@@ -1192,6 +1196,10 @@ function getMonthFirstDay(month, year) {
   const day = String(1).padStart(2, '0');
   const m = String(month + 1).padStart(2, '0');
   return `${year}-${m}-${day}`;
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().split('T')[0];
 }
 
 function formatDate(dateStr) {
@@ -1562,6 +1570,7 @@ window.openCopyExpensesToCategoryModal = function() {
     categorySelect.appendChild(option);
   });
 
+  document.getElementById('copy-target-date').value = getTodayDateString();
   document.getElementById('copy-expenses-to-category-modal').classList.add('open');
 }
 
@@ -1575,6 +1584,7 @@ window.confirmCopyExpensesToCategory = async function() {
     showToast('Select a target category');
     return;
   }
+  const copyDate = document.getElementById('copy-target-date').value || getTodayDateString();
 
   const targetTab = state.tabs.find(t => t.id === targetCategoryId);
   let copiedCount = 0;
@@ -1588,7 +1598,7 @@ window.confirmCopyExpensesToCategory = async function() {
         desc: original.desc,
         amount: original.amount,
         tabId: targetCategoryId,
-        date: original.date,
+        date: copyDate,
         note: original.note || ''
       };
       if (isFirebase) {
