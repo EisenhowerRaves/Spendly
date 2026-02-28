@@ -10,14 +10,14 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0f0f0f;
-    --surface: #181818;
-    --surface2: #222222;
-    --border: #2a2a2a;
-    --accent: #e8ff47;
+    --bg: #ffffff;
+    --surface: #f9f9f9;
+    --surface2: #f0f0f0;
+    --border: #dfdfdf;
+    --accent: #8fb300;
     --accent2: #ff6b35;
-    --text: #f0f0f0;
-    --muted: #888;
+    --text: #1a1a1a;
+    --muted: #666666;
     --housing: #60a5fa;
     --food: #34d399;
     --transport: #f472b6;
@@ -101,9 +101,10 @@
   /* HEADER */
   .header {
     position: sticky; top: 0; z-index: 100;
-    background: rgba(15,15,15,0.9);
+    background: rgba(255,255,255,0.95);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     padding: 0 1.5rem;
     height: 60px;
     display: flex;
@@ -312,7 +313,7 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.5);
     backdrop-filter: blur(4px);
     z-index: 200;
     display: flex;
@@ -540,6 +541,51 @@
     transform: translateY(-2px);
   }
 
+  /* CATEGORY DELETE & COPY MODALS */
+  .category-delete-item, .category-copy-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .category-delete-item:last-child, .category-copy-item:last-child {
+    border-bottom: none;
+  }
+  .category-delete-item input[type="checkbox"], .category-copy-item input[type="checkbox"] {
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .category-delete-item .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .category-delete-item .cat-name, .category-copy-item .cat-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .category-delete-item .cat-stats {
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .category-copy-item .expense-date {
+    color: var(--muted);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+  .category-copy-item .expense-amount {
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 70px;
+    text-align: right;
+  }
+
   /* TOAST */
   .toast {
     position: fixed;
@@ -662,7 +708,8 @@
         <div class="dot"></div>
         <span id="fb-status-text">Demo</span>
       </div>
-      <button class="btn-ghost" onclick="openCSVModal()">↑ Import CSV</button>
+      <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV">↑</button>
+      <button class="btn-ghost" onclick="openCalendarModal()" title="Calendar">📅</button>
       <button class="btn-small-accent" onclick="openAddModal()">+ Add Expense</button>
       <button class="btn-ghost" onclick="toggleChat()">🤖 AI Assistant</button>
     </div>
@@ -800,6 +847,52 @@
     </div>
     <div class="modal-actions" style="margin-top:2rem">
       <button class="btn-cancel" onclick="closeCalendarModal()">Close</button>
+</div>
+</div>
+
+<!-- DELETE CATEGORIES MODAL -->
+<div class="modal-overlay" id="delete-categories-modal">
+  <div class="modal">
+    <h3>Delete Categories</h3>
+    <div id="delete-categories-list" style="max-height:300px;overflow-y:auto;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteCategoriesModal()">Cancel</button>
+      <button class="btn-accent" id="delete-btn" onclick="confirmDeleteCategories()" style="flex:2;background:#ff6b6b">Delete Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- COPY/DUPLICATE EXPENSES MODAL -->
+<div class="modal-overlay" id="copy-expenses-modal">
+  <div class="modal">
+    <h3>Duplicate Expenses</h3>
+    <div style="margin-bottom:1rem;display:flex;gap:0.5rem">
+      <button class="btn-ghost" onclick="toggleSelectAllExpenses()" style="flex:1">Select All</button>
+      <button class="btn-ghost" onclick="toggleDeselectAllExpenses()" style="flex:1">Deselect All</button>
+    </div>
+    <div id="copy-expenses-list" style="max-height:300px;overflow-y:auto;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCopyExpensesModal()">Cancel</button>
+      <button class="btn-accent" id="copy-btn" onclick="confirmCopyExpenses()" style="flex:2">Duplicate Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENAME CATEGORY MODAL -->
+<div class="modal-overlay" id="rename-category-modal">
+  <div class="modal">
+    <h3>Rename Category</h3>
+    <div style="margin-bottom:1rem;font-size:0.9rem;color:var(--muted)">
+      <span>Current name: </span>
+      <span id="old-category-name" style="font-weight:600;color:var(--text)"></span>
+    </div>
+    <div class="form-group">
+      <label>New Name</label>
+      <input type="text" id="new-category-name" placeholder="Enter new category name" autofocus>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRenameCategoryModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmRenameCategory()" style="flex:2">Rename</button>
     </div>
   </div>
 </div>
@@ -983,7 +1076,7 @@ function renderSidebar() {
     const el = document.createElement('div');
     el.className = 'sidebar-item' + (state.activeTab === tab.id ? ' active' : '');
     el.onclick = () => switchTab(tab.id);
-    el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total">$${total.toFixed(0)}</span>`;
+    el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total">$${total.toFixed(0)}</span><button class="edit-tab-btn" onclick="event.stopPropagation();openRenameCategoryModal('${tab.id}','${tab.name}');" style="margin-left:auto;padding:0.25rem;border:none;background:none;cursor:pointer;font-size:0.8rem;color:var(--muted);transition:color 0.2s" title="Rename category">✏️</button>`;
     container.appendChild(el);
   });
   // update overview nav
@@ -1118,7 +1211,8 @@ function renderTabView(main, tabId) {
         <h2>${tab.name}</h2>
       </div>
       <div class="tab-actions">
-        <button class="btn-ghost" onclick="deleteTab('${tab.id}')">Delete Category</button>
+        <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete categories">🗑️</button>
+        <button class="btn-ghost" onclick="openCopyExpensesModal('${tab.id}')" title="Duplicate expenses">📋</button>
         <button class="btn-small-accent" onclick="openAddModalFor('${tab.id}')">+ Add Expense</button>
       </div>
     </div>
@@ -1275,6 +1369,165 @@ window.nextMonth = function() {
   renderContent();
 }
 
+// ─── DELETE CATEGORIES MODAL ──────────────────────────────────────────────
+window.openDeleteCategoriesModal = function() {
+  const list = document.getElementById('delete-categories-list');
+  list.innerHTML = '';
+  state.tabs.forEach(tab => {
+    if (tab.id === state.activeTab) return; // Skip current category
+    const expenseCount = state.expenses.filter(e => e.tabId === tab.id).length;
+    const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
+    const item = document.createElement('div');
+    item.className = 'category-delete-item';
+    item.innerHTML = `
+      <input type="checkbox" value="${tab.id}" class="cat-delete-checkbox">
+      <div class="dot" style="background:${tab.color}"></div>
+      <span class="cat-name">${tab.name}</span>
+      <span class="cat-stats">${expenseCount} expenses • $${total.toFixed(2)}</span>
+    `;
+    list.appendChild(item);
+  });
+  document.getElementById('delete-categories-modal').classList.add('open');
+}
+window.closeDeleteCategoriesModal = function() {
+  document.getElementById('delete-categories-modal').classList.remove('open');
+}
+window.confirmDeleteCategories = async function() {
+  const checkboxes = document.querySelectorAll('.cat-delete-checkbox:checked');
+  if (checkboxes.length === 0) {
+    showToast('Select at least one category to delete');
+    return;
+  }
+  const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+  const expenseCount = state.expenses.filter(e => selectedIds.includes(e.tabId)).length;
+  if (!confirm(`Delete ${selectedIds.length} categories and ${expenseCount} expenses? This cannot be undone.`)) return;
+  // Delete categories
+  state.tabs = state.tabs.filter(t => !selectedIds.includes(t.id));
+  // Delete expenses
+  state.expenses = state.expenses.filter(e => !selectedIds.includes(e.tabId));
+  saveLocal();
+  if (isFirebase) {
+    for (const id of selectedIds) {
+      const tabsToDelete = state.tabs.filter(t => t.id === id);
+      const expensesToDelete = state.expenses.filter(e => e.tabId === id);
+      // Firebase deletion happens via realtime updates
+    }
+  }
+  closeDeleteCategoriesModal();
+  // Navigate to overview if current category was deleted
+  if (selectedIds.includes(state.activeTab)) {
+    state.activeTab = 'overview';
+  }
+  renderSidebar();
+  renderContent();
+  showToast(`${selectedIds.length} categories deleted`);
+}
+
+// ─── COPY/DUPLICATE EXPENSES MODAL ────────────────────────────────────────
+window.openCopyExpensesModal = function(tabId) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  const expenses = state.expenses.filter(e => e.tabId === tabId);
+  if (expenses.length === 0) {
+    showToast('No expenses to duplicate');
+    return;
+  }
+  const list = document.getElementById('copy-expenses-list');
+  list.innerHTML = '';
+  expenses.forEach(exp => {
+    const item = document.createElement('div');
+    item.className = 'category-copy-item';
+    item.innerHTML = `
+      <input type="checkbox" value="${exp.id}" class="cat-copy-checkbox">
+      <span class="expense-date">${exp.date}</span>
+      <span class="cat-name">${exp.desc}</span>
+      <span class="expense-amount">$${exp.amount.toFixed(2)}</span>
+    `;
+    list.appendChild(item);
+  });
+  // Update modal title
+  document.querySelector('#copy-expenses-modal h3').textContent = `Duplicate Expenses from ${tab.name}`;
+  document.getElementById('copy-expenses-modal').classList.add('open');
+}
+window.closeCopyExpensesModal = function() {
+  document.getElementById('copy-expenses-modal').classList.remove('open');
+}
+window.toggleSelectAllExpenses = function() {
+  const checkboxes = document.querySelectorAll('.cat-copy-checkbox');
+  checkboxes.forEach(cb => cb.checked = true);
+}
+window.toggleDeselectAllExpenses = function() {
+  const checkboxes = document.querySelectorAll('.cat-copy-checkbox');
+  checkboxes.forEach(cb => cb.checked = false);
+}
+window.confirmCopyExpenses = async function() {
+  const checkboxes = document.querySelectorAll('.cat-copy-checkbox:checked');
+  if (checkboxes.length === 0) {
+    showToast('Select at least one expense to duplicate');
+    return;
+  }
+  const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+  // Find which category we're duplicating from
+  const firstExpense = state.expenses.find(e => e.id === selectedIds[0]);
+  const sourceCategoryId = firstExpense.tabId;
+  // Create duplicates
+  for (const id of selectedIds) {
+    const original = state.expenses.find(e => e.id === id);
+    const duplicate = {
+      id: crypto.randomUUID(),
+      desc: original.desc,
+      amount: original.amount,
+      tabId: original.tabId,
+      date: original.date,
+      note: original.note
+    };
+    state.expenses.push(duplicate);
+    if (isFirebase) {
+      await fbSaveExpense(duplicate);
+    }
+  }
+  saveLocal();
+  closeCopyExpensesModal();
+  renderSidebar();
+  renderContent();
+  showToast(`${selectedIds.length} expenses duplicated`);
+}
+
+// ─── RENAME CATEGORY MODAL ────────────────────────────────────────────────
+window.openRenameCategoryModal = function(tabId, currentName) {
+  document.getElementById('old-category-name').textContent = currentName;
+  document.getElementById('new-category-name').value = currentName;
+  document.getElementById('new-category-name').tabId = tabId; // Store tabId for later
+  document.getElementById('rename-category-modal').classList.add('open');
+  document.getElementById('new-category-name').focus();
+  document.getElementById('new-category-name').select();
+}
+window.closeRenameCategoryModal = function() {
+  document.getElementById('rename-category-modal').classList.remove('open');
+  document.getElementById('new-category-name').value = '';
+}
+window.confirmRenameCategory = async function() {
+  const tabId = document.getElementById('new-category-name').tabId;
+  const newName = document.getElementById('new-category-name').value.trim();
+  if (!newName) {
+    showToast('Enter a category name');
+    return;
+  }
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const oldName = tab.name;
+  tab.name = newName;
+  saveLocal();
+  if (isFirebase) {
+    await fbSaveTab(tab);
+  }
+  closeRenameCategoryModal();
+  renderSidebar();
+  if (state.activeTab === tabId) {
+    renderContent();
+  }
+  showToast(`Renamed to ${newName}`);
+}
+
 // ─── CSV ─────────────────────────────────────────────────────────────────────
 window.openCSVModal = function() {
   populateCategorySelect('csv-category');
@@ -1427,7 +1680,7 @@ function showToast(msg) {
 }
 
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','calendar-modal','mobile-cat-sheet'].forEach(id => {
+['add-modal','csv-modal','newtab-modal','calendar-modal','delete-categories-modal','copy-expenses-modal','rename-category-modal','mobile-cat-sheet'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
