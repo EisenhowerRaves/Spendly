@@ -773,11 +773,11 @@
         <div class="dot"></div>
         <span id="fb-status-text">Demo</span>
       </div>
-      <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV"><i data-lucide="upload"></i></button>
+      <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV"><i data-lucide="import"></i></i></button>
       <button class="btn-ghost" onclick="openCalendarModal()" title="Calendar"><i data-lucide="calendar"></i></button>
       <button class="btn-ghost" onclick="openAddModal()"><i data-lucide="plus"></i></button>
       <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete Categories"><i data-lucide="trash-2"></i></button>
-      <button class="btn-ghost" onclick="toggleChat()">🤖 AI Assistant</button>
+      <button class="btn-ghost" onclick="toggleChat()"><i data-lucide="bot"></i> SpendlyBot</button>
     </div>
   </header>
 
@@ -806,8 +806,8 @@
   <div class="chat-panel" id="chat-panel">
     <div class="chat-header">
       <div style="display:flex;align-items:center;gap:0.5rem">
-        <h3>AI Assistant</h3>
-        <span class="ai-badge">CLAUDE</span>
+        <h3>Spendly Assistant</h3>
+        <span class="ai-badge">Powered by CLAUDE</span>
       </div>
       <button class="chat-close" onclick="toggleChat()">✕</button>
     </div>
@@ -1027,20 +1027,20 @@
 <!-- BOTTOM NAV (mobile) -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bottom-nav-item active" id="bn-overview" onclick="switchTab('overview')">
-    <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>
+    <span class="nav-icon"><i data-lucide="circle-gauge"></i></i></span>
     <span class="nav-label">Dashboard</span>
   </button>
   <button class="bottom-nav-item" id="bn-cats" onclick="openMobileCatSheet()">
-    <span class="nav-icon">🗂️</span>
+    <span class="nav-icon"><i data-lucide="folders"></i></span>
     <span class="nav-label">Categories</span>
   </button>
   <button class="bottom-nav-fab" onclick="openAddModal()">+</button>
   <button class="bottom-nav-item" id="bn-csv" onclick="openCSVModal()">
-    <span class="nav-icon">↑</span>
+    <span class="nav-icon"><i data-lucide="import"></i></span>
     <span class="nav-label">Import</span>
   </button>
   <button class="bottom-nav-item" id="bn-ai" onclick="toggleChat()">
-    <span class="nav-icon">🤖</span>
+    <span class="nav-icon"><i data-lucide="bot"></i></span>
     <span class="nav-label">AI</span>
   </button>
 </nav>
