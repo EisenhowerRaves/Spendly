@@ -978,6 +978,18 @@
   </div>
 </div>
 
+<!-- DELETE EXPENSES CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-expenses-confirm-modal">
+  <div class="modal">
+    <h3>Delete Expenses</h3>
+    <p id="delete-expenses-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteExpensesConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteExpensesAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- BOTTOM NAV (mobile) -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bottom-nav-item active" id="bn-overview" onclick="switchTab('overview')">
@@ -1076,7 +1088,8 @@ async function fbSaveTab(tab) {
 }
 async function fbSaveExpense(exp) {
   if (!isFirebase) return;
-  const ref = await addDoc(collection(db, 'expenses'), exp);
+  const { id: _localId, ...data } = exp;
+  const ref = await addDoc(collection(db, 'expenses'), data);
   exp.id = ref.id;
 }
 async function fbDeleteExpense(id) {
@@ -1442,9 +1455,18 @@ window.showDeleteExpensesConfirmation = function() {
     showToast('Select at least one expense to delete');
     return;
   }
-  if (confirm(`Are you sure you want to delete ${count} selected expense(s)? This cannot be undone.`)) {
-    deleteSelectedExpenses();
-  }
+  document.getElementById('delete-expenses-confirm-msg').textContent =
+    `Are you sure you want to delete ${count} selected expense(s)? This cannot be undone.`;
+  document.getElementById('delete-expenses-confirm-modal').classList.add('open');
+}
+
+window.closeDeleteExpensesConfirmModal = function() {
+  document.getElementById('delete-expenses-confirm-modal').classList.remove('open');
+}
+
+window.confirmDeleteExpensesAction = function() {
+  closeDeleteExpensesConfirmModal();
+  deleteSelectedExpenses();
 }
 
 window.deleteSelectedExpenses = async function() {
@@ -1513,7 +1535,8 @@ window.confirmCopyExpensesToCategory = async function() {
   const targetTab = state.tabs.find(t => t.id === targetCategoryId);
   let copiedCount = 0;
 
-  for (const id of state.selectedExpenseIds) {
+  const idsToCopy = [...state.selectedExpenseIds];
+  for (const id of idsToCopy) {
     const original = state.expenses.find(e => e.id === id);
     if (original) {
       const duplicate = {
@@ -1522,10 +1545,12 @@ window.confirmCopyExpensesToCategory = async function() {
         amount: original.amount,
         tabId: targetCategoryId,
         date: original.date,
-        note: original.note
+        note: original.note || ''
       };
+      if (isFirebase) {
+        await fbSaveExpense(duplicate);
+      }
       state.expenses.push(duplicate);
-      if (isFirebase) await fbSaveExpense(duplicate);
       copiedCount++;
     }
   }
@@ -1981,7 +2006,7 @@ function showToast(msg) {
 }
 
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','calendar-modal','delete-categories-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','mobile-cat-sheet'].forEach(id => {
+['add-modal','csv-modal','newtab-modal','calendar-modal','delete-categories-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','delete-expenses-confirm-modal','mobile-cat-sheet'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
