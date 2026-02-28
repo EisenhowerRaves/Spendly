@@ -996,6 +996,10 @@
       <label>Select Date</label>
       <input type="date" id="copy-target-date">
     </div>
+    <div class="form-group">
+      <label>Select Amount</label>
+      <input type="number" id="copy-exp-amount" placeholder="0.00" step="0.01" min="0">
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeCopyExpensesToCategoryModal()">Cancel</button>
       <button class="btn-accent" onclick="confirmCopyExpensesToCategory()" style="flex:2">Copy</button>
@@ -1133,6 +1137,10 @@ async function fbSaveExpense(exp) {
 async function fbDeleteExpense(id) {
   if (!isFirebase) return;
   await deleteDoc(doc(db, 'expenses', id));
+}
+async function fbDeleteTab(id) {
+  if (!isFirebase) return;
+  await deleteDoc(doc(db, 'tabs', id));
 }
 async function fbUpdateExpense(expense) {
   if (!isFirebase) return;
@@ -1364,7 +1372,6 @@ function renderTabView(main, tabId) {
       <div class="tab-actions">
         <button class="btn-ghost" id="delete-expenses-btn" onclick="showDeleteExpensesConfirmation()" title="Delete selected expenses" disabled><i data-lucide="trash-2"></i></button>
         <button class="btn-ghost" id="copy-expenses-btn" onclick="openCopyExpensesToCategoryModal()" title="Copy selected expenses" disabled><i data-lucide="copy"></i></button>
-        <button class="btn-small-accent" onclick="openAddModalFor('${tab.id}')">+ Add Expense</button>
       </div>
     </div>
     <div class="overview-grid" style="margin-bottom:1.5rem">
@@ -1571,6 +1578,8 @@ window.openCopyExpensesToCategoryModal = function() {
   });
 
   document.getElementById('copy-target-date').value = getTodayDateString();
+  const firstExp = state.expenses.find(e => e.id === state.selectedExpenseIds[0]);
+  document.getElementById('copy-exp-amount').value = firstExp ? firstExp.amount : '';
   document.getElementById('copy-expenses-to-category-modal').classList.add('open');
 }
 
@@ -1585,6 +1594,8 @@ window.confirmCopyExpensesToCategory = async function() {
     return;
   }
   const copyDate = document.getElementById('copy-target-date').value || getTodayDateString();
+  const copyAmountRaw = document.getElementById('copy-exp-amount').value;
+  const copyAmount = copyAmountRaw !== '' ? parseFloat(copyAmountRaw) : null;
 
   const targetTab = state.tabs.find(t => t.id === targetCategoryId);
   let copiedCount = 0;
@@ -1596,7 +1607,7 @@ window.confirmCopyExpensesToCategory = async function() {
       const duplicate = {
         id: crypto.randomUUID(),
         desc: original.desc,
-        amount: original.amount,
+        amount: (copyAmount !== null && !isNaN(copyAmount)) ? copyAmount : original.amount,
         tabId: targetCategoryId,
         date: copyDate,
         note: original.note || ''
@@ -2079,14 +2090,29 @@ window.openDeleteCategoriesModal = function() {
     state.tabs.forEach(tab => {
       const count = state.expenses.filter(e => e.tabId === tab.id).length;
       const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
-      const row = document.createElement('label');
+
+      const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0.75rem;border-radius:8px;cursor:pointer;border:1px solid var(--border);transition:background 0.15s;';
-      row.innerHTML = `
-        <input type="checkbox" data-tab-id="${tab.id}" style="width:16px;height:16px;cursor:pointer;accent-color:#ff4444">
-        <span style="width:10px;height:10px;border-radius:50%;background:${tab.color};flex-shrink:0"></span>
-        <span style="flex:1;font-size:0.9rem">${tab.name}</span>
-        <span style="font-size:0.78rem;color:var(--muted)">${count} expense${count!==1?'s':''} · $${total.toFixed(2)}</span>
-      `;
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.tabId = tab.id;
+      cb.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:#ff4444;flex-shrink:0';
+
+      const dot = document.createElement('span');
+      dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${tab.color};flex-shrink:0`;
+
+      const name = document.createElement('span');
+      name.style.cssText = 'flex:1;font-size:0.9rem';
+      name.textContent = tab.name;
+
+      const info = document.createElement('span');
+      info.style.cssText = 'font-size:0.78rem;color:var(--muted)';
+      info.textContent = `${count} expense${count!==1?'s':''} · $${total.toFixed(2)}`;
+
+      row.append(cb, dot, name, info);
+      // Clicking the row toggles the checkbox; guard against double-toggle when clicking the checkbox directly
+      row.addEventListener('click', (e) => { if (e.target !== cb) cb.checked = !cb.checked; });
       list.appendChild(row);
     });
   }
@@ -2097,24 +2123,26 @@ window.closeDeleteCategoriesModal = function() {
   document.getElementById('delete-categories-modal').classList.remove('open');
 }
 
-window.confirmDeleteCategories = async function() {
+window.confirmDeleteCategories = function() {
   const checked = document.querySelectorAll('#delete-categories-list input[type="checkbox"]:checked');
   if (checked.length === 0) { showToast('Select at least one category'); return; }
   const idsToDelete = Array.from(checked).map(cb => cb.dataset.tabId);
-  for (const id of idsToDelete) {
+
+  idsToDelete.forEach(id => {
+    // Capture expenses before removing them from state
     const expsToDelete = state.expenses.filter(e => e.tabId === id);
-    for (const exp of expsToDelete) {
-      if (isFirebase) await fbDeleteExpense(exp.id);
-    }
-    if (isFirebase) {
-      try {
-        const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-        await deleteDoc(doc(db, 'tabs', id));
-      } catch(e) { console.warn('Firebase tab delete error:', e); }
-    }
+
+    // Update local state first — always runs regardless of Firebase
     state.tabs = state.tabs.filter(t => t.id !== id);
     state.expenses = state.expenses.filter(e => e.tabId !== id);
-  }
+
+    // Sync to Firebase non-blocking — fire and forget with .catch() for error handling
+    if (isFirebase) {
+      expsToDelete.forEach(exp => fbDeleteExpense(exp.id).catch(e => console.warn('Firebase expense delete error:', e)));
+      fbDeleteTab(id).catch(e => console.warn('Firebase tab delete error:', e));
+    }
+  });
+
   saveLocal();
   if (idsToDelete.includes(state.activeTab)) state.activeTab = 'overview';
   closeDeleteCategoriesModal();
