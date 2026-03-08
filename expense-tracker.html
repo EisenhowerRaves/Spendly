@@ -96,6 +96,36 @@
   .setup-note { font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.5; }
   .setup-note a { color: var(--accent); text-decoration: none; }
 
+  /* AUTH SCREEN */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: radial-gradient(ellipse at 60% 40%, #1a2a0a 0%, #0f0f0f 70%);
+  }
+  #auth-screen h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    color: var(--accent);
+    text-align: center;
+  }
+  #auth-screen p { color: var(--muted); text-align: center; max-width: 400px; line-height: 1.6; }
+  #login-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 420px;
+  }
+  #auth-screen .setup-card { width: 100%; }
+  #auth-screen .setup-note a { color: var(--accent); text-decoration: none; }
+  #auth-screen .setup-note a:hover { text-decoration: underline; }
+
   /* MAIN APP */
   #app { display: none; min-height: 100vh; }
 
@@ -743,22 +773,27 @@
 </head>
 <body>
 
-<!-- SETUP SCREEN -->
-<div id="setup-screen">
-  <h1>Spendly</h1>
-  <p>Your personal expense tracker powered by AI. Connect Firebase to sync across all your devices.</p>
-  <div class="setup-card">
-    <label>Firebase API Key</label>
-    <input type="text" id="fb-api-key" placeholder="AIzaSy..." />
-    <label>Firebase Project ID</label>
-    <input type="text" id="fb-project-id" placeholder="my-project-id" />
-    <label>Firebase App ID</label>
-    <input type="text" id="fb-app-id" placeholder="1:123456:web:abc123" />
-    <button class="btn-accent" onclick="initFirebase()">Connect & Launch →</button>
-    <p class="setup-note">
-      Need Firebase? <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → New project → Web app → Firestore Database (free Spark plan). All data syncs across your PC, iPhone & MacBook instantly.
-    </p>
-    <button class="btn-ghost" style="width:100%;margin-top:0.25rem" onclick="launchDemo()">Try Demo (no Firebase)</button>
+<!-- AUTH SCREEN -->
+<div id="auth-screen" style="display:none">
+
+  <!-- LOGIN FORM -->
+  <div id="login-form">
+    <h1>Spendly</h1>
+    <p>Track your expenses, your way.</p>
+    <div class="setup-card">
+      <div class="form-group" style="gap:0.4rem;display:flex;flex-direction:column">
+        <label>Email:</label>
+        <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group" style="gap:0.4rem;display:flex;flex-direction:column">
+        <label>Password:</label>
+        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <button class="btn-accent" id="login-btn" onclick="handleLoginClick()">Log in</button>
+      <p class="setup-note" style="text-align:center">
+        Don't have an account? <a href="#" onclick="showRegisterScreen();return false;">Create new account</a>
+      </p>
+    </div>
   </div>
 </div>
 
@@ -778,6 +813,7 @@
       <button class="btn-ghost" onclick="openAddModal()"><i data-lucide="plus"></i></button>
       <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete Categories"><i data-lucide="trash-2"></i></button>
       <button class="btn-ghost" onclick="toggleChat()"><i data-lucide="bot"></i> SpendlyBot</button>
+      <button class="btn-ghost" onclick="logOut()" title="Log out"><i data-lucide="log-out"></i></button>
     </div>
   </header>
 
@@ -1032,6 +1068,25 @@
   </div>
 </div>
 
+<!-- REGISTER MODAL -->
+<div class="modal-overlay" id="register-modal">
+  <div class="modal">
+    <h3>Spendly New Account</h3>
+    <div class="form-group">
+      <label>Email:</label>
+      <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password:</label>
+      <input type="password" id="reg-password" placeholder="Choose a password" autocomplete="new-password">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('register-modal').classList.remove('open');document.getElementById('reg-email').value='';document.getElementById('reg-password').value='';">Cancel</button>
+      <button class="btn-accent" id="reg-btn" onclick="handleRegisterClick()" style="flex:2">Create</button>
+    </div>
+  </div>
+</div>
+
 <!-- BOTTOM NAV (mobile) -->
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bottom-nav-item active" id="bn-overview" onclick="switchTab('overview')">
@@ -1069,82 +1124,75 @@
 <script type="module">
 // ─── FIREBASE ───────────────────────────────────────────────────────────────
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 let db = null;
+let auth = null;
 let isFirebase = false;
-let unsubscribes = [];
+let currentUserId = null;
 
-// ─── AUTO INIT FIREBASE ──────────────────────────────────────────────────────
-async function autoInitFirebase() {
+// ─── INIT FIREBASE ────────────────────────────────────────────────────────────
+async function initApp() {
   const apiKey = 'AIzaSyDbL7xNxPTCx3EqhUA2zyPlWQApdBmm-W0';
+  const authDomain = 'spendly-ff40a.firebaseapp.com';
   const projectId = 'spendly-ff40a';
   const appId = '1:552192142593:web:eb4258a229c80d45f37f00';
   try {
-    const app = initializeApp({ apiKey, authDomain: `${projectId}.firebaseapp.com`, projectId, appId });
+    const app = initializeApp({ apiKey, authDomain, projectId, appId });
     db = getFirestore(app);
+    auth = getAuth(app);
     isFirebase = true;
     document.getElementById('fb-status-badge').className = 'fb-status connected';
     document.getElementById('fb-status-text').textContent = 'Firebase';
-    await loadFromFirebase();
   } catch(e) {
-    console.warn('Firebase error:', e.message);
+    console.warn('Firebase init error:', e.message);
   }
-  launchApp();
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUserId = user.uid;
+      await loadFromFirebase();
+      launchApp();
+    } else {
+      showAuthScreen();
+    }
+  });
 }
 
-window.initFirebase = async function() {
-  const apiKey = document.getElementById('fb-api-key').value.trim();
-  const projectId = document.getElementById('fb-project-id').value.trim();
-  const appId = document.getElementById('fb-app-id').value.trim();
-  if (!apiKey || !projectId || !appId) { showToast('Please fill in all Firebase fields'); return; }
-  try {
-    const app = initializeApp({ apiKey, authDomain: `${projectId}.firebaseapp.com`, projectId, appId });
-    db = getFirestore(app);
-    isFirebase = true;
-    document.getElementById('fb-status-badge').className = 'fb-status connected';
-    document.getElementById('fb-status-text').textContent = 'Firebase';
-    await loadFromFirebase();
-    launchApp();
-  } catch(e) {
-    showToast('Firebase error: ' + e.message);
-  }
-}
+// Per-user Firestore path helpers
+function ucol(name) { return collection(db, 'users', currentUserId, name); }
+function udoc(name, id) { return doc(db, 'users', currentUserId, name, id); }
 
 async function loadFromFirebase() {
-  const tabsSnap = await getDocs(collection(db, 'tabs'));
-  tabsSnap.forEach(d => {
-    const t = d.data();
-    if (!state.tabs.find(x => x.id === d.id)) state.tabs.push({...t, id: d.id});
-  });
-  const expSnap = await getDocs(collection(db, 'expenses'));
-  expSnap.forEach(d => {
-    const e = d.data();
-    if (!state.expenses.find(x => x.id === d.id)) state.expenses.push({...e, id: d.id});
-  });
+  state.tabs = [];
+  state.expenses = [];
+  const tabsSnap = await getDocs(ucol('tabs'));
+  tabsSnap.forEach(d => state.tabs.push({...d.data(), id: d.id}));
+  const expSnap = await getDocs(ucol('expenses'));
+  expSnap.forEach(d => state.expenses.push({...d.data(), id: d.id}));
 }
 
 async function fbSaveTab(tab) {
-  if (!isFirebase) return;
-  await setDoc(doc(db, 'tabs', tab.id), tab);
+  if (!isFirebase || !currentUserId) return;
+  await setDoc(udoc('tabs', tab.id), tab);
 }
 async function fbSaveExpense(exp) {
-  if (!isFirebase) return;
+  if (!isFirebase || !currentUserId) return;
   const { id: _localId, ...data } = exp;
-  const ref = await addDoc(collection(db, 'expenses'), data);
+  const ref = await addDoc(ucol('expenses'), data);
   exp.id = ref.id;
 }
 async function fbDeleteExpense(id) {
-  if (!isFirebase) return;
-  await deleteDoc(doc(db, 'expenses', id));
+  if (!isFirebase || !currentUserId) return;
+  await deleteDoc(udoc('expenses', id));
 }
 async function fbDeleteTab(id) {
-  if (!isFirebase) return;
-  await deleteDoc(doc(db, 'tabs', id));
+  if (!isFirebase || !currentUserId) return;
+  await deleteDoc(udoc('tabs', id));
 }
 async function fbUpdateExpense(expense) {
-  if (!isFirebase) return;
-  await setDoc(doc(db, 'expenses', expense.id), expense);
+  if (!isFirebase || !currentUserId) return;
+  await setDoc(udoc('expenses', expense.id), expense);
 }
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
@@ -1155,11 +1203,10 @@ const DEFAULT_TABS = [
   {id:'transport', name:'Transport', color:'#f472b6'},
   {id:'subscriptions', name:'Subscriptions', color:'#a78bfa'},
   {id:'health', name:'Health', color:'#a8a29e'},
-  {id:'entertainment', name:'Entertainment', color:'#fbbf24'},
 ];
 
 const state = {
-  tabs: JSON.parse(JSON.stringify(DEFAULT_TABS)),
+  tabs: [],
   expenses: [],
   activeTab: 'overview',
   selectedColor: COLORS[0],
@@ -1170,24 +1217,16 @@ const state = {
   editingExpenseId: null,
 };
 
-// Load local data
-const saved = localStorage.getItem('spendly_state');
-if (saved) { try { const s = JSON.parse(saved); state.tabs = s.tabs || state.tabs; state.expenses = s.expenses || []; } catch(e){} }
-
 function saveLocal() {
-  localStorage.setItem('spendly_state', JSON.stringify({tabs: state.tabs, expenses: state.expenses}));
+  if (!currentUserId) return;
+  localStorage.setItem(`spendly_state_${currentUserId}`, JSON.stringify({tabs: state.tabs, expenses: state.expenses}));
 }
 
 // ─── LAUNCH ──────────────────────────────────────────────────────────────────
-window.launchDemo = function() {
-  launchApp();
-}
-
-// Auto-launch with hardcoded Firebase on page load
-autoInitFirebase();
+initApp();
 
 function launchApp() {
-  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderSidebar();
   renderContent();
@@ -2152,9 +2191,18 @@ window.confirmDeleteCategories = function() {
 }
 
 // close modals on overlay click
-['add-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal','rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal','delete-expenses-confirm-modal','delete-categories-modal','mobile-cat-sheet'].forEach(id => {
-  document.getElementById(id).addEventListener('click', function(e) {
-    if (e.target === this) this.classList.remove('open');
+document.addEventListener('DOMContentLoaded', () => {
+  [
+    'add-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal',
+    'rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal',
+    'delete-expenses-confirm-modal','delete-categories-modal','mobile-cat-sheet',
+    'register-modal'
+  ].forEach(id => {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
   });
 });
 
@@ -2192,6 +2240,103 @@ function updateBottomNav() {
     document.getElementById('bn-cats')?.classList.add('active');
   }
 }
+
+// ─── AUTH HELPERS ─────────────────────────────────────────────────────────────
+function showAuthScreen() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  showLoginScreen();
+}
+
+function showLoginScreen() {
+  document.getElementById('login-form').style.display = 'flex';
+}
+window.showLoginScreen = showLoginScreen;
+
+function showRegisterScreen() {
+  document.getElementById('register-modal').classList.add('open');
+}
+// window.showRegisterScreen handled by plain script below
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+window.handleLogin = async function() {
+  const btn = document.getElementById('login-btn');
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) { showToast('Enter email and password'); return; }
+  btn.textContent = 'Logging in…';
+  btn.disabled = true;
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged handles the rest
+  } catch(e) {
+    showToast('Error: ' + (e.message || e.code));
+    btn.textContent = 'Log in';
+    btn.disabled = false;
+  }
+};
+
+// ─── REGISTER ─────────────────────────────────────────────────────────────────
+window.handleRegister = async function() {
+  const btn = document.getElementById('reg-btn');
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  if (!email || !password) { showToast('Enter email and password'); return; }
+  btn.textContent = 'Creating account…';
+  btn.disabled = true;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = cred.user.uid;
+    await setDoc(doc(db, 'users', uid), { email });
+    currentUserId = uid;
+    state.tabs = DEFAULT_TABS.map(t => ({...t, id: crypto.randomUUID()}));
+    state.expenses = [];
+    for (const tab of state.tabs) { await fbSaveTab(tab); }
+    saveLocal();
+    document.getElementById('register-modal').classList.remove('open');
+    // onAuthStateChanged fires and calls launchApp()
+  } catch(e) {
+    showToast('Error: ' + (e.message || e.code));
+    btn.textContent = 'Create';
+    btn.disabled = false;
+  }
+};
+
+// ─── LOGOUT ───────────────────────────────────────────────────────────────────
+window.logOut = async function() {
+  await signOut(auth);
+  currentUserId = null;
+  state.tabs = [];
+  state.expenses = [];
+  state.activeTab = 'overview';
+  state.selectedExpenseIds = [];
+  document.getElementById('login-btn').textContent = 'Log in';
+  document.getElementById('login-btn').disabled = false;
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('reg-btn').textContent = 'Create';
+  document.getElementById('reg-btn').disabled = false;
+  document.getElementById('reg-email').value = '';
+  document.getElementById('reg-password').value = '';
+  // onAuthStateChanged will call showAuthScreen()
+};
 </script>
+<script>
+// These UI toggle functions must be in a plain script (not module) so
+// onclick attributes can reach them immediately on page load.
+function showRegisterScreen() {
+  document.getElementById('register-modal').classList.add('open');
+}
+function showLoginScreen() {
+  document.getElementById('register-modal').classList.remove('open');
+}
+function handleLoginClick() {
+  if (window.handleLogin) window.handleLogin();
+}
+function handleRegisterClick() {
+  if (window.handleRegister) window.handleRegister();
+}
+</script>
+
 </body>
 </html>
