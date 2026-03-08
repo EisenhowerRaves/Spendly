@@ -126,6 +126,35 @@
   #auth-screen .setup-note a { color: var(--accent); text-decoration: none; }
   #auth-screen .setup-note a:hover { text-decoration: underline; }
 
+  .password-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  .password-wrapper input {
+    padding-right: 2.5rem; /* Make space for icon */
+  }
+  .toggle-password {
+    position: absolute;
+    top: 50%;
+    right: 0.5rem;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .toggle-password:hover {
+    color: var(--text);
+  }
+  .toggle-password svg {
+    width: 18px;
+    height: 18px;
+  }
+
   /* MAIN APP */
   #app { display: none; min-height: 100vh; }
 
@@ -787,7 +816,12 @@
       </div>
       <div class="form-group" style="gap:0.4rem;display:flex;flex-direction:column">
         <label>Password:</label>
-        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+        <div class="password-wrapper">
+          <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+          <button type="button" class="toggle-password" onclick="togglePasswordVisibility('login-password', this)">
+            <i data-lucide="eye"></i>
+          </button>
+        </div>
       </div>
       <button class="btn-accent" id="login-btn" onclick="handleLoginClick()">Log in</button>
       <p class="setup-note" style="text-align:center">
@@ -1090,7 +1124,12 @@
     </div>
     <div class="form-group">
       <label>Password:</label>
-      <input type="password" id="reg-password" placeholder="Choose a password" autocomplete="new-password">
+      <div class="password-wrapper">
+        <input type="password" id="reg-password" placeholder="Choose a password" autocomplete="new-password">
+        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('reg-password', this)">
+          <i data-lucide="eye"></i>
+        </button>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="document.getElementById('register-modal').classList.remove('open');document.getElementById('reg-name').value='';document.getElementById('reg-surname').value='';document.getElementById('reg-preferred-name').value='';document.getElementById('reg-email').value='';document.getElementById('reg-password').value='';">Cancel</button>
@@ -1169,6 +1208,12 @@ async function initApp() {
       await loadFromFirebase();
       launchApp();
     } else {
+      // Clear any stale cached data so it never persists after account deletion
+      localStorage.removeItem('spendly_user');
+      localStorage.removeItem('spendly_state');
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('spendly_'))
+        .forEach(k => localStorage.removeItem(k));
       showAuthScreen();
     }
   });
@@ -2326,6 +2371,12 @@ window.handleRegister = async function() {
 
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 window.logOut = async function() {
+  // Clear localStorage before signing out so stale data never lingers
+  localStorage.removeItem('spendly_user');
+  localStorage.removeItem('spendly_state');
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('spendly_'))
+    .forEach(k => localStorage.removeItem(k));
   await signOut(auth);
   currentUserId = null;
   state.tabs = [];
@@ -2345,6 +2396,19 @@ window.logOut = async function() {
   document.getElementById('reg-password').value = '';
   currentUserProfile = null;
   // onAuthStateChanged will call showAuthScreen()
+};
+
+window.togglePasswordVisibility = function(inputId, button) {
+  const input = document.getElementById(inputId);
+  const icon = button.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.setAttribute('data-lucide', 'eye-off');
+  } else {
+    input.type = 'password';
+    icon.setAttribute('data-lucide', 'eye');
+  }
+  lucide.createIcons();
 };
 </script>
 <script>
