@@ -802,7 +802,7 @@
 
   <!-- HEADER -->
   <header class="header">
-    <div class="header-logo">Spendly</div>
+    <div class="header-logo">Spendly<span id="header-preferred-name" style="font-size:0.75em;color:#1a1a1a;opacity:0.85;font-family:inherit;font-weight:400;margin-left:1rem">Hi <span id="header-name-text"></span></span></div>
     <div class="header-actions">
       <div class="fb-status disconnected" id="fb-status-badge">
         <div class="dot"></div>
@@ -1073,6 +1073,18 @@
   <div class="modal">
     <h3>Spendly New Account</h3>
     <div class="form-group">
+      <label>Name:</label>
+      <input type="text" id="reg-name" placeholder="First name" autocomplete="given-name">
+    </div>
+    <div class="form-group">
+      <label>Surname:</label>
+      <input type="text" id="reg-surname" placeholder="Last name" autocomplete="family-name">
+    </div>
+    <div class="form-group">
+      <label>Preferred name:</label>
+      <input type="text" id="reg-preferred-name" placeholder="How should we call you?">
+    </div>
+    <div class="form-group">
       <label>Email:</label>
       <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
     </div>
@@ -1081,7 +1093,7 @@
       <input type="password" id="reg-password" placeholder="Choose a password" autocomplete="new-password">
     </div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="document.getElementById('register-modal').classList.remove('open');document.getElementById('reg-email').value='';document.getElementById('reg-password').value='';">Cancel</button>
+      <button class="btn-cancel" onclick="document.getElementById('register-modal').classList.remove('open');document.getElementById('reg-name').value='';document.getElementById('reg-surname').value='';document.getElementById('reg-preferred-name').value='';document.getElementById('reg-email').value='';document.getElementById('reg-password').value='';">Cancel</button>
       <button class="btn-accent" id="reg-btn" onclick="handleRegisterClick()" style="flex:2">Create</button>
     </div>
   </div>
@@ -1124,13 +1136,14 @@
 <script type="module">
 // ─── FIREBASE ───────────────────────────────────────────────────────────────
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, getDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 let db = null;
 let auth = null;
 let isFirebase = false;
 let currentUserId = null;
+let currentUserProfile = null;
 
 // ─── INIT FIREBASE ────────────────────────────────────────────────────────────
 async function initApp() {
@@ -1151,6 +1164,8 @@ async function initApp() {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       currentUserId = user.uid;
+      const profileSnap = await getDoc(doc(db, 'users', user.uid));
+      currentUserProfile = profileSnap.exists() ? profileSnap.data() : {};
       await loadFromFirebase();
       launchApp();
     } else {
@@ -1228,6 +1243,9 @@ initApp();
 function launchApp() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  const displayName = (currentUserProfile && (currentUserProfile.preferredName || currentUserProfile.name)) || '';
+  const nameEl = document.getElementById('header-name-text');
+  if (nameEl) nameEl.textContent = displayName ? displayName + '!' : '';
   renderSidebar();
   renderContent();
 }
@@ -2279,15 +2297,19 @@ window.handleLogin = async function() {
 // ─── REGISTER ─────────────────────────────────────────────────────────────────
 window.handleRegister = async function() {
   const btn = document.getElementById('reg-btn');
-  const email    = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value;
+  const name          = document.getElementById('reg-name').value.trim();
+  const surname       = document.getElementById('reg-surname').value.trim();
+  const preferredName = document.getElementById('reg-preferred-name').value.trim();
+  const email         = document.getElementById('reg-email').value.trim();
+  const password      = document.getElementById('reg-password').value;
   if (!email || !password) { showToast('Enter email and password'); return; }
   btn.textContent = 'Creating account…';
   btn.disabled = true;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const uid = cred.user.uid;
-    await setDoc(doc(db, 'users', uid), { email });
+    await setDoc(doc(db, 'users', uid), { email, name, surname, preferredName });
+    currentUserProfile = { email, name, surname, preferredName };
     currentUserId = uid;
     state.tabs = DEFAULT_TABS.map(t => ({...t, id: crypto.randomUUID()}));
     state.expenses = [];
@@ -2316,8 +2338,12 @@ window.logOut = async function() {
   document.getElementById('login-password').value = '';
   document.getElementById('reg-btn').textContent = 'Create';
   document.getElementById('reg-btn').disabled = false;
+  document.getElementById('reg-name').value = '';
+  document.getElementById('reg-surname').value = '';
+  document.getElementById('reg-preferred-name').value = '';
   document.getElementById('reg-email').value = '';
   document.getElementById('reg-password').value = '';
+  currentUserProfile = null;
   // onAuthStateChanged will call showAuthScreen()
 };
 </script>
