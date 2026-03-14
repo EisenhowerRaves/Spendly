@@ -33,6 +33,10 @@
     color: var(--text);
     min-height: 100vh;
     overflow-x: hidden;
+    box-shadow: 0px 4px 12px 0px rgba(0, 0, 0, 0.15);
+    border-style: solid;
+    border-width: 1px;
+    border-color: rgba(0, 0, 0, 1);
   }
 
   /* SETUP SCREEN */
@@ -178,8 +182,8 @@
   }
   .header-actions { display: flex; gap: 0.75rem; align-items: center; }
   .btn-ghost {
-    background: transparent;
-    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 1);
+    border: 1px solid rgba(2, 115, 172, 1);
     border-radius: 8px;
     padding: 0.5rem 1rem;
     color: var(--muted);
@@ -859,7 +863,11 @@
         <div class="dot" style="background:#e8ff47"></div>
         <span>Dashboard</span>
       </div>
-      <div class="sidebar-label">Categories</div>
+      <div class="sidebar-item" onclick="switchTab('income')" id="nav-income">
+        <div class="dot" style="background:#368a1c"></div>
+        <span>Income</span>
+      </div>
+      <div class="sidebar-label">Expense Categories</div>
       <div id="sidebar-tabs"></div>
       <div class="sidebar-add-tab" onclick="openNewTabModal()">
         <span>＋</span> New Category
@@ -877,7 +885,7 @@
     <div class="chat-header">
       <div style="display:flex;align-items:center;gap:0.5rem">
         <h3>Spendly Assistant</h3>
-        <span class="ai-badge">Powered by CLAUDE</span>
+        <span class="ai-badge">Powered by Gemini</span>
       </div>
       <button class="chat-close" onclick="toggleChat()">✕</button>
     </div>
@@ -918,6 +926,33 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
       <button class="btn-accent" onclick="saveExpense()" style="flex:2">Add Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD INCOME MODAL -->
+<div class="modal-overlay" id="add-income-modal">
+  <div class="modal">
+    <h3>Add Income</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="income-desc" placeholder="e.g. Salary, Freelance" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="income-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="income-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="income-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddIncomeModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveIncome()" style="flex:2">Add Income</button>
     </div>
   </div>
 </div>
@@ -1085,6 +1120,18 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeDeleteExpensesConfirmModal()">Cancel</button>
       <button class="btn-accent" onclick="confirmDeleteExpensesAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE INCOME CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-income-confirm-modal">
+  <div class="modal">
+    <h3>Delete Income</h3>
+    <p id="delete-income-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteIncomeConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteIncomeAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
     </div>
   </div>
 </div>
@@ -1326,10 +1373,19 @@ function udoc(name, id) { return doc(db, 'users', currentUserId, name, id); }
 async function loadFromFirebase() {
   state.tabs = [];
   state.expenses = [];
+  state.income = [];
   const tabsSnap = await getDocs(ucol('tabs'));
   tabsSnap.forEach(d => state.tabs.push({...d.data(), id: d.id}));
   const expSnap = await getDocs(ucol('expenses'));
   expSnap.forEach(d => state.expenses.push({...d.data(), id: d.id}));
+  // Restore income from localStorage (income is local-only for now)
+  try {
+    const raw = localStorage.getItem(`spendly_state_${currentUserId}`);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.income)) state.income = data.income;
+    }
+  } catch (_) {}
 }
 
 async function fbSaveTab(tab) {
@@ -1368,18 +1424,20 @@ const DEFAULT_TABS = [
 const state = {
   tabs: [],
   expenses: [],
+  income: [],
   activeTab: 'overview',
   selectedColor: COLORS[0],
   pendingCSV: [],
   selectedMonth: new Date().getMonth(),
   selectedYear: new Date().getFullYear(),
   selectedExpenseIds: [],
+  selectedIncomeIds: [],
   editingExpenseId: null,
 };
 
 function saveLocal() {
   if (!currentUserId) return;
-  localStorage.setItem(`spendly_state_${currentUserId}`, JSON.stringify({tabs: state.tabs, expenses: state.expenses}));
+  localStorage.setItem(`spendly_state_${currentUserId}`, JSON.stringify({tabs: state.tabs, expenses: state.expenses, income: state.income}));
 }
 
 // ─── LAUNCH ──────────────────────────────────────────────────────────────────
@@ -1437,18 +1495,60 @@ function renderSidebar() {
     el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total">$${total.toFixed(0)}</span>`;
     container.appendChild(el);
   });
-  // update overview nav
+  // update overview and income nav (independent)
   document.getElementById('nav-overview').className = 'sidebar-item' + (state.activeTab === 'overview' ? ' active' : '');
+  const navIncome = document.getElementById('nav-income');
+  if (navIncome) navIncome.className = 'sidebar-item' + (state.activeTab === 'income' ? ' active' : '');
 }
 
 function renderContent() {
   const main = document.getElementById('main-content');
   if (state.activeTab === 'overview') {
     renderOverview(main);
+  } else if (state.activeTab === 'income') {
+    renderIncome(main);
   } else {
     renderTabView(main, state.activeTab);
   }
   lucide.createIcons();
+}
+
+function renderIncome(main) {
+  const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
+  const selectedMonthIncome = filterByMonth(state.income, state.selectedMonth, state.selectedYear);
+  const incomeColor = '#368a1c';
+  let tableHtml = `
+    <div class="expense-table-wrap"><table class="expense-table">
+      <thead><tr><th style="width:30px"><input type="checkbox" id="select-all-income" onchange="toggleSelectAllIncomeInTable()"></th><th>Description</th><th>Date</th><th>Note</th><th>Amount</th><th style="width:50px"></th></tr></thead>
+      <tbody>`;
+  if (selectedMonthIncome.length === 0) {
+    tableHtml += `<tr><td colspan="6"><div class="empty-state"><span><i data-lucide="folder-open"></i></span>No income for ${monthLabel}.</div></td></tr>`;
+  } else {
+    selectedMonthIncome.forEach(inc => {
+      tableHtml += `<tr id="income-row-${inc.id}" class="expense-row-${state.selectedIncomeIds.includes(inc.id) ? 'selected' : 'unselected'}">
+        <td><input type="checkbox" class="income-checkbox" value="${inc.id}" onchange="updateIncomeCheckboxState()"></td>
+        <td>${inc.desc}</td>
+        <td class="expense-date">${formatDate(inc.date)}</td>
+        <td class="expense-note">${inc.note || ''}</td>
+        <td class="expense-amount" style="color:${incomeColor}">$${inc.amount.toFixed(2)}</td>
+        <td><button class="edit-expense-btn" onclick="openEditIncomeModal('${inc.id}')" title="Edit income"><i data-lucide="pencil"></i></button></td>
+      </tr>`;
+    });
+  }
+  tableHtml += '</tbody></table></div>';
+  main.innerHTML = `
+    <div class="tab-header">
+      <div class="tab-title">
+        <div class="tab-dot" style="background:${incomeColor}"></div>
+        <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Income - ${monthLabel}</h2>
+      </div>
+      <div class="tab-actions">
+        <button class="btn-ghost" onclick="openAddIncomeModal()" title="Add income"><i data-lucide="plus"></i></button>
+        <button class="btn-ghost" id="delete-income-btn" onclick="showDeleteIncomeConfirmation()" title="Delete selected income" disabled><i data-lucide="trash-2"></i></button>
+        <button class="btn-ghost" id="copy-income-btn" onclick="duplicateSelectedIncome()" title="Duplicate selected income" disabled><i data-lucide="copy"></i></button>
+      </div>
+    </div>
+    ${tableHtml}`;
 }
 
 function renderOverview(main) {
@@ -1468,14 +1568,7 @@ function renderOverview(main) {
     ...t, total: selectedMonthExpenses.filter(e => e.tabId === t.id).reduce((s,e) => s+e.amount,0)
   })).sort((a,b) => b.total - a.total)[0];
 
-  // Month selector UI
-  const monthSelector = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;flex-wrap:wrap">
-      <button class="btn-ghost" onclick="prevMonth()" style="padding:0.5rem 0.75rem">← Back</button>
-      <span style="font-weight:600;font-size:1.1rem;min-width:200px;text-align:center">${getMonthDisplayName(state.selectedMonth, state.selectedYear)}</span>
-      <button class="btn-ghost" onclick="nextMonth()" style="padding:0.5rem 0.75rem">Forward →</button>
-    </div>`;
-
+  const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
   let cards = `
     <div class="overview-grid">
       <div class="stat-card" style="--c:${topCat?.color||'#e8ff47'}"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--c)"></div>
@@ -1534,9 +1627,8 @@ function renderOverview(main) {
   recHtml += '</tbody></table></div>';
 
   main.innerHTML = `
-    ${monthSelector}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
-      <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Dashboard</h2>
+      <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Dashboard - ${monthLabel}</h2>
     </div>
     ${cards}${bars}<h3 style="font-family:DM Serif Display,serif;font-size:1.2rem;margin-bottom:1rem">Recent Transactions</h3>${recHtml}`;
 }
@@ -1552,22 +1644,14 @@ function renderTabView(main, tabId) {
   // Expenses in selected month
   const selectedMonthExpenses = filterByMonth(allExpenses, state.selectedMonth, state.selectedYear);
   const thisMonth = selectedMonthExpenses.reduce((s,e) => s+e.amount, 0);
-
-  // Month selector UI
-  const monthSelector = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;flex-wrap:wrap">
-      <button class="btn-ghost" onclick="prevMonth()" style="padding:0.5rem 0.75rem">← Back</button>
-      <span style="font-weight:600;font-size:1.1rem;min-width:200px;text-align:center">${getMonthDisplayName(state.selectedMonth, state.selectedYear)}</span>
-      <button class="btn-ghost" onclick="nextMonth()" style="padding:0.5rem 0.75rem">Forward →</button>
-    </div>`;
+  const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
 
   let html = `
-    ${monthSelector}
     <div class="tab-header">
       <div class="tab-title">
         <div class="tab-dot" style="background:${tab.color}"></div>
         <h2 id="cat-name-display" onclick="startEditCategoryName('${tab.id}')" title="Click to rename">
-          <span id="cat-name-text">${tab.name}</span>
+          <span id="cat-name-text">${tab.name}</span><span> - ${monthLabel}</span>
           <span class="cat-edit-hint"><i data-lucide="pencil"></i></span>
         </h2>
       </div>
@@ -1707,6 +1791,132 @@ window.updateExpenseCheckboxState = function() {
 
   // Update select all checkbox state
   selectAllCheckbox.checked = state.selectedExpenseIds.length === checkboxes.length && checkboxes.length > 0;
+}
+
+// ─── INCOME: ADD / MODAL ──────────────────────────────────────────────────────
+window.openAddIncomeModal = function() {
+  document.getElementById('income-desc').value = '';
+  document.getElementById('income-amount').value = '';
+  document.getElementById('income-date').value = getMonthFirstDay(state.selectedMonth, state.selectedYear);
+  document.getElementById('income-note').value = '';
+  document.getElementById('add-income-modal').classList.add('open');
+}
+window.closeAddIncomeModal = function() {
+  document.getElementById('add-income-modal').classList.remove('open');
+  document.getElementById('add-income-modal').removeAttribute('data-editing-id');
+  const h3 = document.querySelector('#add-income-modal .modal h3');
+  const btn = document.querySelector('#add-income-modal .modal-actions .btn-accent');
+  if (h3) h3.textContent = 'Add Income';
+  if (btn) { btn.textContent = 'Add Income'; btn.onclick = saveIncome; }
+}
+window.saveIncome = function() {
+  const desc = document.getElementById('income-desc').value.trim();
+  const amount = parseFloat(document.getElementById('income-amount').value);
+  const date = document.getElementById('income-date').value;
+  const note = document.getElementById('income-note').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0 || !date) { showToast('Please fill in description, amount and date'); return; }
+  const inc = { id: crypto.randomUUID(), desc, amount, date, note };
+  state.income.push(inc);
+  saveLocal();
+  closeAddIncomeModal();
+  renderContent();
+  showToast('Income added ✓');
+}
+
+// ─── INCOME TABLE CHECKBOX & SELECTION ─────────────────────────────────────────
+window.toggleSelectAllIncomeInTable = function() {
+  const selectAllCheckbox = document.getElementById('select-all-income');
+  const individualCheckboxes = document.querySelectorAll('.income-checkbox');
+  if (selectAllCheckbox && selectAllCheckbox.checked) {
+    state.selectedIncomeIds = Array.from(individualCheckboxes).map(cb => cb.value);
+    individualCheckboxes.forEach(cb => cb.checked = true);
+  } else {
+    state.selectedIncomeIds = [];
+    if (individualCheckboxes.length) individualCheckboxes.forEach(cb => cb.checked = false);
+  }
+  updateIncomeCheckboxState();
+}
+window.updateIncomeCheckboxState = function() {
+  const checkboxes = document.querySelectorAll('.income-checkbox');
+  const selectAllCheckbox = document.getElementById('select-all-income');
+  if (!selectAllCheckbox) return;
+  state.selectedIncomeIds = Array.from(document.querySelectorAll('.income-checkbox:checked')).map(cb => cb.value);
+  document.querySelectorAll('[id^="income-row-"]').forEach(row => {
+    const id = row.id.replace('income-row-', '');
+    if (state.selectedIncomeIds.includes(id)) row.classList.add('expense-row-selected');
+    else row.classList.remove('expense-row-selected');
+  });
+  const hasSelection = state.selectedIncomeIds.length > 0;
+  const delBtn = document.getElementById('delete-income-btn');
+  const copyBtn = document.getElementById('copy-income-btn');
+  if (delBtn) delBtn.disabled = !hasSelection;
+  if (copyBtn) copyBtn.disabled = !hasSelection;
+  selectAllCheckbox.checked = checkboxes.length > 0 && state.selectedIncomeIds.length === checkboxes.length;
+}
+
+// ─── DELETE INCOME (BULK) ─────────────────────────────────────────────────────
+window.showDeleteIncomeConfirmation = function() {
+  const count = state.selectedIncomeIds.length;
+  if (count === 0) { showToast('Select at least one income to delete'); return; }
+  document.getElementById('delete-income-confirm-msg').textContent =
+    `Are you sure you want to delete ${count} selected income entry(ies)? This cannot be undone.`;
+  document.getElementById('delete-income-confirm-modal').classList.add('open');
+}
+window.closeDeleteIncomeConfirmModal = function() {
+  document.getElementById('delete-income-confirm-modal').classList.remove('open');
+}
+window.confirmDeleteIncomeAction = function() {
+  closeDeleteIncomeConfirmModal();
+  const count = state.selectedIncomeIds.length;
+  state.income = state.income.filter(inc => !state.selectedIncomeIds.includes(inc.id));
+  state.selectedIncomeIds = [];
+  saveLocal();
+  renderContent();
+  showToast(`${count} income entry(ies) deleted`);
+}
+window.duplicateSelectedIncome = function() {
+  if (state.selectedIncomeIds.length === 0) { showToast('Select at least one income to duplicate'); return; }
+  state.selectedIncomeIds.forEach(id => {
+    const inc = state.income.find(i => i.id === id);
+    if (inc) state.income.push({ id: crypto.randomUUID(), desc: inc.desc, amount: inc.amount, date: inc.date, note: inc.note || '' });
+  });
+  state.selectedIncomeIds = [];
+  saveLocal();
+  renderContent();
+  showToast('Income duplicated');
+}
+
+// ─── EDIT INCOME (placeholder – can open add modal with prefilled data) ─────────
+window.openEditIncomeModal = function(id) {
+  const inc = state.income.find(i => i.id === id);
+  if (!inc) return;
+  document.getElementById('income-desc').value = inc.desc;
+  document.getElementById('income-amount').value = inc.amount;
+  document.getElementById('income-date').value = inc.date;
+  document.getElementById('income-note').value = inc.note || '';
+  document.getElementById('add-income-modal').classList.add('open');
+  document.getElementById('add-income-modal').setAttribute('data-editing-id', id);
+  const h3 = document.querySelector('#add-income-modal .modal h3');
+  const btn = document.querySelector('#add-income-modal .modal-actions .btn-accent');
+  if (h3) h3.textContent = 'Edit Income';
+  if (btn) { btn.textContent = 'Update'; btn.onclick = () => updateIncomeAndClose(id); }
+}
+function updateIncomeAndClose(id) {
+  const desc = document.getElementById('income-desc').value.trim();
+  const amount = parseFloat(document.getElementById('income-amount').value);
+  const date = document.getElementById('income-date').value;
+  const note = document.getElementById('income-note').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0 || !date) { showToast('Please fill in description, amount and date'); return; }
+  const inc = state.income.find(i => i.id === id);
+  if (inc) { inc.desc = desc; inc.amount = amount; inc.date = date; inc.note = note; }
+  saveLocal();
+  document.getElementById('add-income-modal').removeAttribute('data-editing-id');
+  document.querySelector('#add-income-modal .modal h3').textContent = 'Add Income';
+  const btn = document.querySelector('#add-income-modal .modal-actions .btn-accent');
+  if (btn) { btn.textContent = 'Add Income'; btn.onclick = saveIncome; }
+  closeAddIncomeModal();
+  renderContent();
+  showToast('Income updated');
 }
 
 // ─── DELETE EXPENSES (BULK) ────────────────────────────────────────────────────
@@ -2240,20 +2450,22 @@ window.sendChat = async function() {
   msgs.appendChild(loadEl);
   msgs.scrollTop = msgs.scrollHeight;
 
+  const GEMINI_API_KEY = 'AIzaSyDn3_C5jk2I7jkOn3_pInaZDn7mJK_rfVU';
   try {
     const summary = getExpenseSummary();
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: `You are a friendly, sharp personal finance assistant embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.`,
-        messages: [{ role: 'user', content: msg }]
+        systemInstruction: {
+          parts: [{ text: `You are a friendly, sharp personal finance assistant embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.` }]
+        },
+        contents: [{ role: 'user', parts: [{ text: msg }] }],
+        generationConfig: { maxOutputTokens: 1000 }
       })
     });
     const data = await res.json();
-    const reply = data.content?.[0]?.text || 'Sorry, I had trouble processing that. Try again!';
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || data.error?.message || 'Sorry, I had trouble processing that. Try again!';
     loadEl.classList.remove('loading');
     loadEl.textContent = reply;
   } catch(e) {
@@ -2356,9 +2568,9 @@ window.confirmDeleteCategories = function() {
 // close modals on overlay click
 document.addEventListener('DOMContentLoaded', () => {
   [
-    'add-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal',
+    'add-modal','add-income-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal',
     'rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal',
-    'delete-expenses-confirm-modal','delete-categories-modal','mobile-cat-sheet',
+    'delete-expenses-confirm-modal','delete-income-confirm-modal','delete-categories-modal','mobile-cat-sheet',
     'register-modal'
   ].forEach(id => {
     const modal = document.getElementById(id);
@@ -2379,6 +2591,12 @@ window.openMobileCatSheet = function() {
   dash.innerHTML = `<div class="dot" style="background:#e8ff47"></div><span>Dashboard</span>`;
   dash.onclick = () => { closeModalSheet('mobile-cat-sheet'); switchTab('overview'); };
   list.appendChild(dash);
+  // Income item
+  const income = document.createElement('div');
+  income.className = 'sidebar-item' + (state.activeTab === 'income' ? ' active' : '');
+  income.innerHTML = `<div class="dot" style="background:#368a1c"></div><span>Income</span>`;
+  income.onclick = () => { closeModalSheet('mobile-cat-sheet'); switchTab('income'); };
+  list.appendChild(income);
   // Category items
   state.tabs.forEach(tab => {
     const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
@@ -2399,6 +2617,8 @@ function updateBottomNav() {
   document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   if (state.activeTab === 'overview') {
     document.getElementById('bn-overview')?.classList.add('active');
+  } else if (state.activeTab === 'income') {
+    // Income has its own view; no dedicated bottom nav item yet
   } else {
     document.getElementById('bn-cats')?.classList.add('active');
   }
@@ -2481,8 +2701,10 @@ window.logOut = async function() {
   currentUserId = null;
   state.tabs = [];
   state.expenses = [];
+  state.income = [];
   state.activeTab = 'overview';
   state.selectedExpenseIds = [];
+  state.selectedIncomeIds = [];
   document.getElementById('login-btn').textContent = 'Log in';
   document.getElementById('login-btn').disabled = false;
   document.getElementById('login-email').value = '';
