@@ -11,7 +11,7 @@
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
   :root {
-    --bg: #ffffff;
+    --bg: #f5f0e8;
     --surface: #f9f9f9;
     --surface2: #f0f0f0;
     --border: #dfdfdf;
@@ -34,9 +34,6 @@
     min-height: 100vh;
     overflow-x: hidden;
     box-shadow: 0px 4px 12px 0px rgba(0, 0, 0, 0.15);
-    border-style: solid;
-    border-width: 1px;
-    border-color: rgba(0, 0, 0, 1);
   }
 
   /* SETUP SCREEN */
@@ -273,6 +270,7 @@
 
   /* CONTENT */
   .content { padding: 2rem; overflow-y: auto; }
+  #main-content { box-sizing: content-box; }
 
   /* OVERVIEW */
   .overview-grid {
@@ -2450,22 +2448,17 @@ window.sendChat = async function() {
   msgs.appendChild(loadEl);
   msgs.scrollTop = msgs.scrollHeight;
 
-  const GEMINI_API_KEY = 'AIzaSyDn3_C5jk2I7jkOn3_pInaZDn7mJK_rfVU';
+  // Use backend proxy so the API key never appears in the browser (see server/ and SETUP.md)
+  const apiBase = window.SPENDLY_AI_API || (location.protocol === 'file:' ? 'http://localhost:3000' : '');
   try {
     const summary = getExpenseSummary();
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(`${apiBase}/api/gemini`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: `You are a friendly, sharp personal finance assistant embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.` }]
-        },
-        contents: [{ role: 'user', parts: [{ text: msg }] }],
-        generationConfig: { maxOutputTokens: 1000 }
-      })
+      body: JSON.stringify({ summary, message: msg })
     });
     const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || data.error?.message || 'Sorry, I had trouble processing that. Try again!';
+    const reply = data.reply || data.error || 'Sorry, I had trouble processing that. Try again!';
     loadEl.classList.remove('loading');
     loadEl.textContent = reply;
   } catch(e) {
