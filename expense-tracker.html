@@ -12,13 +12,14 @@
 <style>
   :root {
     --bg: #f5f0e8;
-    --surface: #f9f9f9;
-    --surface2: #f0f0f0;
+    --surface: #d6cdc0;
+    --surface2: #a39683;
+    --surface3: #f5f0e8;
     --border: #dfdfdf;
     --accent: #8fb300;
     --accent2: #ff6b35;
-    --text: #1a1a1a;
-    --muted: #666666;
+    --text: #000000;
+    --muted: #000000;
     --housing: #60a5fa;
     --food: #34d399;
     --transport: #f472b6;
@@ -373,7 +374,6 @@
     vertical-align: middle;
   }
   .expense-table tr:last-child td { border-bottom: none; }
-  .expense-table tr:hover td { background: var(--surface2); }
   .expense-amount { font-weight: 600; font-family: 'DM Serif Display', serif; font-size: 1rem; }
   .expense-date { color: var(--muted); font-size: 0.8rem; }
   .expense-note { color: var(--muted); font-size: 0.8rem; font-style: italic; }
@@ -1602,7 +1602,7 @@ function renderOverview(main) {
         <span style="color:var(--text)">${tab.name}</span>
         <span style="color:var(--muted)">$${t.toFixed(2)}</span>
       </div>
-      <div style="background:var(--surface2);border-radius:4px;height:6px">
+      <div style="background:var(--surface3);border-radius:4px;height:6px">
         <div style="background:${tab.color};height:6px;border-radius:4px;width:${pct}%;transition:width 0.5s"></div>
       </div>
     </div>`;
