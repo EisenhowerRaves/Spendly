@@ -1,0 +1,13 @@
+{
+  "name": "spendly-server",
+  "version": "1.0.0",
+  "description": "Backend proxy for Spendly Gemini API (keeps API key server-side)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  }
+}
