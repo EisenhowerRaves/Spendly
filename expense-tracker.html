@@ -865,6 +865,14 @@
         <div class="dot" style="background:#368a1c"></div>
         <span>Income</span>
       </div>
+      <div class="sidebar-item" onclick="switchTab('taxes')" id="nav-taxes">
+        <div class="dot" style="background:#a51f07"></div>
+        <span>Taxes</span>
+      </div>
+      <div class="sidebar-item" onclick="switchTab('super')" id="nav-super">
+        <div class="dot" style="background:#2563eb"></div>
+        <span>Super</span>
+      </div>
       <div class="sidebar-label">Expense Categories</div>
       <div id="sidebar-tabs"></div>
       <div class="sidebar-add-tab" onclick="openNewTabModal()">
@@ -1134,6 +1142,84 @@
   </div>
 </div>
 
+<!-- ADD TAXES MODAL -->
+<div class="modal-overlay" id="add-taxes-modal">
+  <div class="modal">
+    <h3>Add Taxes</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="taxes-desc" placeholder="e.g. PAYG, ATO" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="taxes-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="taxes-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="taxes-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddTaxesModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveTaxes()" style="flex:2">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE TAXES CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-taxes-confirm-modal">
+  <div class="modal">
+    <h3>Delete Taxes</h3>
+    <p id="delete-taxes-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteTaxesConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteTaxesAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD SUPER MODAL -->
+<div class="modal-overlay" id="add-super-modal">
+  <div class="modal">
+    <h3>Add Super</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="super-desc" placeholder="e.g. Employer contribution" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="super-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="super-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="super-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddSuperModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveSuper()" style="flex:2">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE SUPER CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-super-confirm-modal">
+  <div class="modal">
+    <h3>Delete Super</h3>
+    <p id="delete-super-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteSuperConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteSuperAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE CATEGORIES MODAL -->
 <div class="modal-overlay" id="delete-categories-modal">
   <div class="modal">
@@ -1372,16 +1458,20 @@ async function loadFromFirebase() {
   state.tabs = [];
   state.expenses = [];
   state.income = [];
+  state.taxes = [];
+  state.super = [];
   const tabsSnap = await getDocs(ucol('tabs'));
   tabsSnap.forEach(d => state.tabs.push({...d.data(), id: d.id}));
   const expSnap = await getDocs(ucol('expenses'));
   expSnap.forEach(d => state.expenses.push({...d.data(), id: d.id}));
-  // Restore income from localStorage (income is local-only for now)
+  // Restore income, taxes, super from localStorage (local-only for now)
   try {
     const raw = localStorage.getItem(`spendly_state_${currentUserId}`);
     if (raw) {
       const data = JSON.parse(raw);
       if (Array.isArray(data.income)) state.income = data.income;
+      if (Array.isArray(data.taxes)) state.taxes = data.taxes;
+      if (Array.isArray(data.super)) state.super = data.super;
     }
   } catch (_) {}
 }
@@ -1423,6 +1513,8 @@ const state = {
   tabs: [],
   expenses: [],
   income: [],
+  taxes: [],
+  super: [],
   activeTab: 'overview',
   selectedColor: COLORS[0],
   pendingCSV: [],
@@ -1430,12 +1522,14 @@ const state = {
   selectedYear: new Date().getFullYear(),
   selectedExpenseIds: [],
   selectedIncomeIds: [],
+  selectedTaxIds: [],
+  selectedSuperIds: [],
   editingExpenseId: null,
 };
 
 function saveLocal() {
   if (!currentUserId) return;
-  localStorage.setItem(`spendly_state_${currentUserId}`, JSON.stringify({tabs: state.tabs, expenses: state.expenses, income: state.income}));
+  localStorage.setItem(`spendly_state_${currentUserId}`, JSON.stringify({tabs: state.tabs, expenses: state.expenses, income: state.income, taxes: state.taxes, super: state.super}));
 }
 
 // ─── LAUNCH ──────────────────────────────────────────────────────────────────
@@ -1493,10 +1587,14 @@ function renderSidebar() {
     el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total">$${total.toFixed(0)}</span>`;
     container.appendChild(el);
   });
-  // update overview and income nav (independent)
+  // update overview, income, taxes, super nav (independent)
   document.getElementById('nav-overview').className = 'sidebar-item' + (state.activeTab === 'overview' ? ' active' : '');
   const navIncome = document.getElementById('nav-income');
   if (navIncome) navIncome.className = 'sidebar-item' + (state.activeTab === 'income' ? ' active' : '');
+  const navTaxes = document.getElementById('nav-taxes');
+  if (navTaxes) navTaxes.className = 'sidebar-item' + (state.activeTab === 'taxes' ? ' active' : '');
+  const navSuper = document.getElementById('nav-super');
+  if (navSuper) navSuper.className = 'sidebar-item' + (state.activeTab === 'super' ? ' active' : '');
 }
 
 function renderContent() {
@@ -1505,6 +1603,10 @@ function renderContent() {
     renderOverview(main);
   } else if (state.activeTab === 'income') {
     renderIncome(main);
+  } else if (state.activeTab === 'taxes') {
+    renderTaxes(main);
+  } else if (state.activeTab === 'super') {
+    renderSuper(main);
   } else {
     renderTabView(main, state.activeTab);
   }
@@ -1544,6 +1646,82 @@ function renderIncome(main) {
         <button class="btn-ghost" onclick="openAddIncomeModal()" title="Add income"><i data-lucide="plus"></i></button>
         <button class="btn-ghost" id="delete-income-btn" onclick="showDeleteIncomeConfirmation()" title="Delete selected income" disabled><i data-lucide="trash-2"></i></button>
         <button class="btn-ghost" id="copy-income-btn" onclick="duplicateSelectedIncome()" title="Duplicate selected income" disabled><i data-lucide="copy"></i></button>
+      </div>
+    </div>
+    ${tableHtml}`;
+}
+
+function renderTaxes(main) {
+  const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
+  const selectedMonthTaxes = filterByMonth(state.taxes, state.selectedMonth, state.selectedYear);
+  const taxesColor = '#a51f07';
+  let tableHtml = `
+    <div class="expense-table-wrap"><table class="expense-table">
+      <thead><tr><th style="width:30px"><input type="checkbox" id="select-all-taxes" onchange="toggleSelectAllTaxesInTable()"></th><th>Description</th><th>Date</th><th>Note</th><th>Amount</th><th style="width:50px"></th></tr></thead>
+      <tbody>`;
+  if (selectedMonthTaxes.length === 0) {
+    tableHtml += `<tr><td colspan="6"><div class="empty-state"><span><i data-lucide="folder-open"></i></span>No taxes for ${monthLabel}.</div></td></tr>`;
+  } else {
+    selectedMonthTaxes.forEach(entry => {
+      tableHtml += `<tr id="taxes-row-${entry.id}" class="expense-row-${state.selectedTaxIds.includes(entry.id) ? 'selected' : 'unselected'}">
+        <td><input type="checkbox" class="taxes-checkbox" value="${entry.id}" onchange="updateTaxesCheckboxState()"></td>
+        <td>${entry.desc}</td>
+        <td class="expense-date">${formatDate(entry.date)}</td>
+        <td class="expense-note">${entry.note || ''}</td>
+        <td class="expense-amount" style="color:${taxesColor}">$${entry.amount.toFixed(2)}</td>
+        <td><button class="edit-expense-btn" onclick="openEditTaxesModal('${entry.id}')" title="Edit"><i data-lucide="pencil"></i></button></td>
+      </tr>`;
+    });
+  }
+  tableHtml += '</tbody></table></div>';
+  main.innerHTML = `
+    <div class="tab-header">
+      <div class="tab-title">
+        <div class="tab-dot" style="background:${taxesColor}"></div>
+        <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Taxes - ${monthLabel}</h2>
+      </div>
+      <div class="tab-actions">
+        <button class="btn-ghost" onclick="openAddTaxesModal()" title="Add"><i data-lucide="plus"></i></button>
+        <button class="btn-ghost" id="delete-taxes-btn" onclick="showDeleteTaxesConfirmation()" title="Delete selected" disabled><i data-lucide="trash-2"></i></button>
+        <button class="btn-ghost" id="copy-taxes-btn" onclick="duplicateSelectedTaxes()" title="Duplicate selected" disabled><i data-lucide="copy"></i></button>
+      </div>
+    </div>
+    ${tableHtml}`;
+}
+
+function renderSuper(main) {
+  const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
+  const selectedMonthSuper = filterByMonth(state.super, state.selectedMonth, state.selectedYear);
+  const superColor = '#2563eb';
+  let tableHtml = `
+    <div class="expense-table-wrap"><table class="expense-table">
+      <thead><tr><th style="width:30px"><input type="checkbox" id="select-all-super" onchange="toggleSelectAllSuperInTable()"></th><th>Description</th><th>Date</th><th>Note</th><th>Amount</th><th style="width:50px"></th></tr></thead>
+      <tbody>`;
+  if (selectedMonthSuper.length === 0) {
+    tableHtml += `<tr><td colspan="6"><div class="empty-state"><span><i data-lucide="folder-open"></i></span>No super for ${monthLabel}.</div></td></tr>`;
+  } else {
+    selectedMonthSuper.forEach(entry => {
+      tableHtml += `<tr id="super-row-${entry.id}" class="expense-row-${state.selectedSuperIds.includes(entry.id) ? 'selected' : 'unselected'}">
+        <td><input type="checkbox" class="super-checkbox" value="${entry.id}" onchange="updateSuperCheckboxState()"></td>
+        <td>${entry.desc}</td>
+        <td class="expense-date">${formatDate(entry.date)}</td>
+        <td class="expense-note">${entry.note || ''}</td>
+        <td class="expense-amount" style="color:${superColor}">$${entry.amount.toFixed(2)}</td>
+        <td><button class="edit-expense-btn" onclick="openEditSuperModal('${entry.id}')" title="Edit"><i data-lucide="pencil"></i></button></td>
+      </tr>`;
+    });
+  }
+  tableHtml += '</tbody></table></div>';
+  main.innerHTML = `
+    <div class="tab-header">
+      <div class="tab-title">
+        <div class="tab-dot" style="background:${superColor}"></div>
+        <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Super - ${monthLabel}</h2>
+      </div>
+      <div class="tab-actions">
+        <button class="btn-ghost" onclick="openAddSuperModal()" title="Add"><i data-lucide="plus"></i></button>
+        <button class="btn-ghost" id="delete-super-btn" onclick="showDeleteSuperConfirmation()" title="Delete selected" disabled><i data-lucide="trash-2"></i></button>
+        <button class="btn-ghost" id="copy-super-btn" onclick="duplicateSelectedSuper()" title="Duplicate selected" disabled><i data-lucide="copy"></i></button>
       </div>
     </div>
     ${tableHtml}`;
@@ -1915,6 +2093,246 @@ function updateIncomeAndClose(id) {
   closeAddIncomeModal();
   renderContent();
   showToast('Income updated');
+}
+
+// ─── TAXES: ADD / EDIT / DELETE / DUPLICATE ────────────────────────────────────
+window.openAddTaxesModal = function() {
+  document.getElementById('taxes-desc').value = '';
+  document.getElementById('taxes-amount').value = '';
+  document.getElementById('taxes-date').value = getMonthFirstDay(state.selectedMonth, state.selectedYear);
+  document.getElementById('taxes-note').value = '';
+  document.getElementById('add-taxes-modal').classList.add('open');
+}
+window.closeAddTaxesModal = function() {
+  document.getElementById('add-taxes-modal').classList.remove('open');
+  document.getElementById('add-taxes-modal').removeAttribute('data-editing-id');
+  const h3 = document.querySelector('#add-taxes-modal .modal h3');
+  const btn = document.querySelector('#add-taxes-modal .modal-actions .btn-accent');
+  if (h3) h3.textContent = 'Add Taxes';
+  if (btn) { btn.textContent = 'Add'; btn.onclick = saveTaxes; }
+}
+window.saveTaxes = function() {
+  const desc = document.getElementById('taxes-desc').value.trim();
+  const amount = parseFloat(document.getElementById('taxes-amount').value);
+  const date = document.getElementById('taxes-date').value;
+  const note = document.getElementById('taxes-note').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0 || !date) { showToast('Please fill in description, amount and date'); return; }
+  const entry = { id: crypto.randomUUID(), desc, amount, date, note };
+  state.taxes.push(entry);
+  saveLocal();
+  closeAddTaxesModal();
+  renderContent();
+  showToast('Taxes entry added ✓');
+}
+window.toggleSelectAllTaxesInTable = function() {
+  const selectAllCheckbox = document.getElementById('select-all-taxes');
+  const individualCheckboxes = document.querySelectorAll('.taxes-checkbox');
+  if (selectAllCheckbox && selectAllCheckbox.checked) {
+    state.selectedTaxIds = Array.from(individualCheckboxes).map(cb => cb.value);
+    individualCheckboxes.forEach(cb => cb.checked = true);
+  } else {
+    state.selectedTaxIds = [];
+    if (individualCheckboxes.length) individualCheckboxes.forEach(cb => cb.checked = false);
+  }
+  updateTaxesCheckboxState();
+}
+window.updateTaxesCheckboxState = function() {
+  const checkboxes = document.querySelectorAll('.taxes-checkbox');
+  const selectAllCheckbox = document.getElementById('select-all-taxes');
+  if (!selectAllCheckbox) return;
+  state.selectedTaxIds = Array.from(document.querySelectorAll('.taxes-checkbox:checked')).map(cb => cb.value);
+  document.querySelectorAll('[id^="taxes-row-"]').forEach(row => {
+    const id = row.id.replace('taxes-row-', '');
+    if (state.selectedTaxIds.includes(id)) row.classList.add('expense-row-selected');
+    else row.classList.remove('expense-row-selected');
+  });
+  const hasSelection = state.selectedTaxIds.length > 0;
+  const delBtn = document.getElementById('delete-taxes-btn');
+  const copyBtn = document.getElementById('copy-taxes-btn');
+  if (delBtn) delBtn.disabled = !hasSelection;
+  if (copyBtn) copyBtn.disabled = !hasSelection;
+  selectAllCheckbox.checked = checkboxes.length > 0 && state.selectedTaxIds.length === checkboxes.length;
+}
+window.showDeleteTaxesConfirmation = function() {
+  const count = state.selectedTaxIds.length;
+  if (count === 0) { showToast('Select at least one entry to delete'); return; }
+  document.getElementById('delete-taxes-confirm-msg').textContent =
+    `Are you sure you want to delete ${count} selected tax entry(ies)? This cannot be undone.`;
+  document.getElementById('delete-taxes-confirm-modal').classList.add('open');
+}
+window.closeDeleteTaxesConfirmModal = function() {
+  document.getElementById('delete-taxes-confirm-modal').classList.remove('open');
+}
+window.confirmDeleteTaxesAction = function() {
+  closeDeleteTaxesConfirmModal();
+  const count = state.selectedTaxIds.length;
+  state.taxes = state.taxes.filter(entry => !state.selectedTaxIds.includes(entry.id));
+  state.selectedTaxIds = [];
+  saveLocal();
+  renderContent();
+  showToast(`${count} tax entry(ies) deleted`);
+}
+window.duplicateSelectedTaxes = function() {
+  if (state.selectedTaxIds.length === 0) { showToast('Select at least one entry to duplicate'); return; }
+  state.selectedTaxIds.forEach(id => {
+    const entry = state.taxes.find(i => i.id === id);
+    if (entry) state.taxes.push({ id: crypto.randomUUID(), desc: entry.desc, amount: entry.amount, date: entry.date, note: entry.note || '' });
+  });
+  state.selectedTaxIds = [];
+  saveLocal();
+  renderContent();
+  showToast('Taxes duplicated');
+}
+window.openEditTaxesModal = function(id) {
+  const entry = state.taxes.find(i => i.id === id);
+  if (!entry) return;
+  document.getElementById('taxes-desc').value = entry.desc;
+  document.getElementById('taxes-amount').value = entry.amount;
+  document.getElementById('taxes-date').value = entry.date;
+  document.getElementById('taxes-note').value = entry.note || '';
+  document.getElementById('add-taxes-modal').classList.add('open');
+  document.getElementById('add-taxes-modal').setAttribute('data-editing-id', id);
+  const h3 = document.querySelector('#add-taxes-modal .modal h3');
+  const btn = document.querySelector('#add-taxes-modal .modal-actions .btn-accent');
+  if (h3) h3.textContent = 'Edit Taxes';
+  if (btn) { btn.textContent = 'Update'; btn.onclick = () => updateTaxesAndClose(id); }
+}
+function updateTaxesAndClose(id) {
+  const desc = document.getElementById('taxes-desc').value.trim();
+  const amount = parseFloat(document.getElementById('taxes-amount').value);
+  const date = document.getElementById('taxes-date').value;
+  const note = document.getElementById('taxes-note').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0 || !date) { showToast('Please fill in description, amount and date'); return; }
+  const entry = state.taxes.find(i => i.id === id);
+  if (entry) { entry.desc = desc; entry.amount = amount; entry.date = date; entry.note = note; }
+  saveLocal();
+  document.getElementById('add-taxes-modal').removeAttribute('data-editing-id');
+  document.querySelector('#add-taxes-modal .modal h3').textContent = 'Add Taxes';
+  const btn = document.querySelector('#add-taxes-modal .modal-actions .btn-accent');
+  if (btn) { btn.textContent = 'Add'; btn.onclick = saveTaxes; }
+  closeAddTaxesModal();
+  renderContent();
+  showToast('Taxes updated');
+}
+
+// ─── SUPER: ADD / EDIT / DELETE / DUPLICATE ────────────────────────────────────
+window.openAddSuperModal = function() {
+  document.getElementById('super-desc').value = '';
+  document.getElementById('super-amount').value = '';
+  document.getElementById('super-date').value = getMonthFirstDay(state.selectedMonth, state.selectedYear);
+  document.getElementById('super-note').value = '';
+  document.getElementById('add-super-modal').classList.add('open');
+}
+window.closeAddSuperModal = function() {
+  document.getElementById('add-super-modal').classList.remove('open');
+  document.getElementById('add-super-modal').removeAttribute('data-editing-id');
+  const h3 = document.querySelector('#add-super-modal .modal h3');
+  const btn = document.querySelector('#add-super-modal .modal-actions .btn-accent');
+  if (h3) h3.textContent = 'Add Super';
+  if (btn) { btn.textContent = 'Add'; btn.onclick = saveSuper; }
+}
+window.saveSuper = function() {
+  const desc = document.getElementById('super-desc').value.trim();
+  const amount = parseFloat(document.getElementById('super-amount').value);
+  const date = document.getElementById('super-date').value;
+  const note = document.getElementById('super-note').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0 || !date) { showToast('Please fill in description, amount and date'); return; }
+  const entry = { id: crypto.randomUUID(), desc, amount, date, note };
+  state.super.push(entry);
+  saveLocal();
+  closeAddSuperModal();
+  renderContent();
+  showToast('Super entry added ✓');
+}
+window.toggleSelectAllSuperInTable = function() {
+  const selectAllCheckbox = document.getElementById('select-all-super');
+  const individualCheckboxes = document.querySelectorAll('.super-checkbox');
+  if (selectAllCheckbox && selectAllCheckbox.checked) {
+    state.selectedSuperIds = Array.from(individualCheckboxes).map(cb => cb.value);
+    individualCheckboxes.forEach(cb => cb.checked = true);
+  } else {
+    state.selectedSuperIds = [];
+    if (individualCheckboxes.length) individualCheckboxes.forEach(cb => cb.checked = false);
+  }
+  updateSuperCheckboxState();
+}
+window.updateSuperCheckboxState = function() {
+  const checkboxes = document.querySelectorAll('.super-checkbox');
+  const selectAllCheckbox = document.getElementById('select-all-super');
+  if (!selectAllCheckbox) return;
+  state.selectedSuperIds = Array.from(document.querySelectorAll('.super-checkbox:checked')).map(cb => cb.value);
+  document.querySelectorAll('[id^="super-row-"]').forEach(row => {
+    const id = row.id.replace('super-row-', '');
+    if (state.selectedSuperIds.includes(id)) row.classList.add('expense-row-selected');
+    else row.classList.remove('expense-row-selected');
+  });
+  const hasSelection = state.selectedSuperIds.length > 0;
+  const delBtn = document.getElementById('delete-super-btn');
+  const copyBtn = document.getElementById('copy-super-btn');
+  if (delBtn) delBtn.disabled = !hasSelection;
+  if (copyBtn) copyBtn.disabled = !hasSelection;
+  selectAllCheckbox.checked = checkboxes.length > 0 && state.selectedSuperIds.length === checkboxes.length;
+}
+window.showDeleteSuperConfirmation = function() {
+  const count = state.selectedSuperIds.length;
+  if (count === 0) { showToast('Select at least one entry to delete'); return; }
+  document.getElementById('delete-super-confirm-msg').textContent =
+    `Are you sure you want to delete ${count} selected super entry(ies)? This cannot be undone.`;
+  document.getElementById('delete-super-confirm-modal').classList.add('open');
+}
+window.closeDeleteSuperConfirmModal = function() {
+  document.getElementById('delete-super-confirm-modal').classList.remove('open');
+}
+window.confirmDeleteSuperAction = function() {
+  closeDeleteSuperConfirmModal();
+  const count = state.selectedSuperIds.length;
+  state.super = state.super.filter(entry => !state.selectedSuperIds.includes(entry.id));
+  state.selectedSuperIds = [];
+  saveLocal();
+  renderContent();
+  showToast(`${count} super entry(ies) deleted`);
+}
+window.duplicateSelectedSuper = function() {
+  if (state.selectedSuperIds.length === 0) { showToast('Select at least one entry to duplicate'); return; }
+  state.selectedSuperIds.forEach(id => {
+    const entry = state.super.find(i => i.id === id);
+    if (entry) state.super.push({ id: crypto.randomUUID(), desc: entry.desc, amount: entry.amount, date: entry.date, note: entry.note || '' });
+  });
+  state.selectedSuperIds = [];
+  saveLocal();
+  renderContent();
+  showToast('Super duplicated');
+}
+window.openEditSuperModal = function(id) {
+  const entry = state.super.find(i => i.id === id);
+  if (!entry) return;
+  document.getElementById('super-desc').value = entry.desc;
+  document.getElementById('super-amount').value = entry.amount;
+  document.getElementById('super-date').value = entry.date;
+  document.getElementById('super-note').value = entry.note || '';
+  document.getElementById('add-super-modal').classList.add('open');
+  document.getElementById('add-super-modal').setAttribute('data-editing-id', id);
+  const h3 = document.querySelector('#add-super-modal .modal h3');
+  const btn = document.querySelector('#add-super-modal .modal-actions .btn-accent');
+  if (h3) h3.textContent = 'Edit Super';
+  if (btn) { btn.textContent = 'Update'; btn.onclick = () => updateSuperAndClose(id); }
+}
+function updateSuperAndClose(id) {
+  const desc = document.getElementById('super-desc').value.trim();
+  const amount = parseFloat(document.getElementById('super-amount').value);
+  const date = document.getElementById('super-date').value;
+  const note = document.getElementById('super-note').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0 || !date) { showToast('Please fill in description, amount and date'); return; }
+  const entry = state.super.find(i => i.id === id);
+  if (entry) { entry.desc = desc; entry.amount = amount; entry.date = date; entry.note = note; }
+  saveLocal();
+  document.getElementById('add-super-modal').removeAttribute('data-editing-id');
+  document.querySelector('#add-super-modal .modal h3').textContent = 'Add Super';
+  const btn = document.querySelector('#add-super-modal .modal-actions .btn-accent');
+  if (btn) { btn.textContent = 'Add'; btn.onclick = saveSuper; }
+  closeAddSuperModal();
+  renderContent();
+  showToast('Super updated');
 }
 
 // ─── DELETE EXPENSES (BULK) ────────────────────────────────────────────────────
@@ -2561,9 +2979,9 @@ window.confirmDeleteCategories = function() {
 // close modals on overlay click
 document.addEventListener('DOMContentLoaded', () => {
   [
-    'add-modal','add-income-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal',
+    'add-modal','add-income-modal','add-taxes-modal','add-super-modal','csv-modal','newtab-modal','calendar-modal','copy-expenses-modal',
     'rename-category-modal','edit-expense-modal','copy-expenses-to-category-modal',
-    'delete-expenses-confirm-modal','delete-income-confirm-modal','delete-categories-modal','mobile-cat-sheet',
+    'delete-expenses-confirm-modal','delete-income-confirm-modal','delete-taxes-confirm-modal','delete-super-confirm-modal','delete-categories-modal','mobile-cat-sheet',
     'register-modal'
   ].forEach(id => {
     const modal = document.getElementById(id);
@@ -2590,6 +3008,18 @@ window.openMobileCatSheet = function() {
   income.innerHTML = `<div class="dot" style="background:#368a1c"></div><span>Income</span>`;
   income.onclick = () => { closeModalSheet('mobile-cat-sheet'); switchTab('income'); };
   list.appendChild(income);
+  // Taxes item
+  const taxes = document.createElement('div');
+  taxes.className = 'sidebar-item' + (state.activeTab === 'taxes' ? ' active' : '');
+  taxes.innerHTML = `<div class="dot" style="background:#2563eb"></div><span>Taxes</span>`;
+  taxes.onclick = () => { closeModalSheet('mobile-cat-sheet'); switchTab('taxes'); };
+  list.appendChild(taxes);
+  // Super item
+  const superEl = document.createElement('div');
+  superEl.className = 'sidebar-item' + (state.activeTab === 'super' ? ' active' : '');
+  superEl.innerHTML = `<div class="dot" style="background:#7c3aed"></div><span>Super</span>`;
+  superEl.onclick = () => { closeModalSheet('mobile-cat-sheet'); switchTab('super'); };
+  list.appendChild(superEl);
   // Category items
   state.tabs.forEach(tab => {
     const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
@@ -2610,8 +3040,8 @@ function updateBottomNav() {
   document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   if (state.activeTab === 'overview') {
     document.getElementById('bn-overview')?.classList.add('active');
-  } else if (state.activeTab === 'income') {
-    // Income has its own view; no dedicated bottom nav item yet
+  } else if (state.activeTab === 'income' || state.activeTab === 'taxes' || state.activeTab === 'super') {
+    // Income, Taxes, Super have their own views; no dedicated bottom nav item
   } else {
     document.getElementById('bn-cats')?.classList.add('active');
   }
@@ -2695,9 +3125,13 @@ window.logOut = async function() {
   state.tabs = [];
   state.expenses = [];
   state.income = [];
+  state.taxes = [];
+  state.super = [];
   state.activeTab = 'overview';
   state.selectedExpenseIds = [];
   state.selectedIncomeIds = [];
+  state.selectedTaxIds = [];
+  state.selectedSuperIds = [];
   document.getElementById('login-btn').textContent = 'Log in';
   document.getElementById('login-btn').disabled = false;
   document.getElementById('login-email').value = '';
