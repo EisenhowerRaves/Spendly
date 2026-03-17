@@ -1580,7 +1580,9 @@ function renderSidebar() {
   const container = document.getElementById('sidebar-tabs');
   container.innerHTML = '';
   state.tabs.forEach(tab => {
-    const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s + e.amount, 0);
+    const total = filterByMonth(state.expenses, state.selectedMonth, state.selectedYear)
+      .filter(e => e.tabId === tab.id)
+      .reduce((s,e) => s + e.amount, 0);
     const el = document.createElement('div');
     el.className = 'sidebar-item' + (state.activeTab === tab.id ? ' active' : '');
     el.onclick = () => switchTab(tab.id);
@@ -1729,15 +1731,17 @@ function renderSuper(main) {
 
 function renderOverview(main) {
   const total = state.expenses.reduce((s,e) => s + e.amount, 0);
-  const now = new Date();
 
   // Selected month expenses
   const selectedMonthExpenses = filterByMonth(state.expenses, state.selectedMonth, state.selectedYear);
   const thisMonth = selectedMonthExpenses.reduce((s,e) => s + e.amount, 0);
 
-  // Real last month (actual calendar month)
-  const lastMonthDate = new Date(state.selectedYear, state.selectedMonth - 1, 1);
-  const lastMonth = filterByMonth(state.expenses, lastMonthDate.getMonth(), lastMonthDate.getFullYear()).reduce((s,e) => s + e.amount, 0);
+  // Selected month income & taxes (for net income)
+  const selectedMonthIncome = filterByMonth(state.income, state.selectedMonth, state.selectedYear);
+  const incomeThisMonth = selectedMonthIncome.reduce((s, e) => s + e.amount, 0);
+  const selectedMonthTaxes = filterByMonth(state.taxes, state.selectedMonth, state.selectedYear);
+  const taxesThisMonth = selectedMonthTaxes.reduce((s, e) => s + e.amount, 0);
+  const netIncomeThisMonth = incomeThisMonth - taxesThisMonth;
 
   // Top category in selected month
   const topCat = state.tabs.map(t => ({
@@ -1745,22 +1749,81 @@ function renderOverview(main) {
   })).sort((a,b) => b.total - a.total)[0];
 
   const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
+  const year = state.selectedYear;
+
+  // Yearly overview (current selected year)
+  const yearExpenses = state.expenses.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear() === year;
+  });
+  const totalYearExpenses = yearExpenses.reduce((s, e) => s + e.amount, 0);
+  const yearIncome = state.income.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear() === year;
+  }).reduce((s, e) => s + e.amount, 0);
+  const yearTaxes = state.taxes.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear() === year;
+  }).reduce((s, e) => s + e.amount, 0);
+  const totalNetIncomeYear = yearIncome - yearTaxes;
+
+  const monthlyExpensesForYear = Array.from({ length: 12 }, (_, m) =>
+    yearExpenses
+      .filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === m;
+      })
+      .reduce((s, e) => s + e.amount, 0)
+  );
+  const maxMonthly = Math.max(1, ...monthlyExpensesForYear);
+
+  const shortMonthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthlyBars = monthlyExpensesForYear.map((val, idx) => {
+    const pct = Math.max(3, (val / maxMonthly) * 100);
+    const hasValue = val > 0;
+    return `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.15rem;font-size:0.7rem">
+        <div style="height:120px;display:flex;align-items:flex-end;justify-content:center;width:100%">
+          <div style="width:8px;border-radius:999px;background:${hasValue ? 'var(--accent)' : 'rgba(143,179,0,0.25)'};height:${pct}%;transition:height 0.3s;"></div>
+        </div>
+        <span>${shortMonthLabels[idx]}</span>
+        <span style="color:var(--muted);font-size:0.7rem">$${val.toFixed(0)}</span>
+      </div>`;
+  }).join('');
+
+  const yearOverview = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.5rem 1.75rem;margin-bottom:1.75rem">
+      <div style="display:flex;flex-wrap:wrap;gap:1.75rem;align-items:flex-start;justify-content:space-between">
+        <div style="min-width:220px;flex:1">
+          <h2 style="font-family:DM Serif Display,serif;font-size:1.4rem;margin:0 0 0.75rem">Financial Overview – ${year}</h2>
+          <div style="display:flex;flex-direction:column;gap:0.35rem;font-size:0.9rem">
+            <div><strong>Total Net Income:</strong> $${totalNetIncomeYear.toFixed(2)}</div>
+            <div><strong>Total Expenses:</strong> $${totalYearExpenses.toFixed(2)}</div>
+          </div>
+        </div>
+        <div style="flex:2;min-width:260px">
+          <div style="border-radius:12px;background:var(--surface3);padding:1rem 1.25rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;font-size:0.85rem">
+              <span style="font-weight:600">Expenses for each month</span>
+              <span style="color:var(--muted);font-size:0.8rem">Current year ${year}</span>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:flex-end">${monthlyBars}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
   let cards = `
     <div class="overview-grid">
+      <div class="stat-card" style="--c:#4ade80"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--c)"></div>
+        <div class="stat-label">Income this Month</div>
+        <div class="stat-value">$${netIncomeThisMonth.toFixed(0)}</div>
+        <div class="stat-sub">Income $${incomeThisMonth.toFixed(0)} · Taxes $${taxesThisMonth.toFixed(0)}</div>
+      </div>
       <div class="stat-card" style="--c:${topCat?.color||'#e8ff47'}"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--c)"></div>
-        <div class="stat-label">This Month</div>
+        <div class="stat-label">This Month (Expenses)</div>
         <div class="stat-value">$${thisMonth.toFixed(0)}</div>
-        <div class="stat-sub">${thisMonth > lastMonth ? '↑' : '↓'} vs last month</div>
-      </div>
-      <div class="stat-card"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#e8ff47"></div>
-        <div class="stat-label">Last Month</div>
-        <div class="stat-value">$${lastMonth.toFixed(0)}</div>
-        <div class="stat-sub">previous period</div>
-      </div>
-      <div class="stat-card"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ff6b35"></div>
-        <div class="stat-label">All Time</div>
-        <div class="stat-value">$${total.toFixed(0)}</div>
-        <div class="stat-sub">${state.expenses.length} transactions</div>
+        <div class="stat-sub">${state.expenses.length} total transactions</div>
       </div>
       <div class="stat-card" style="--c:${topCat?.color||'#888'}"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:${topCat?.color||'#888'}"></div>
         <div class="stat-label">Top Category</div>
@@ -1803,8 +1866,9 @@ function renderOverview(main) {
   recHtml += '</tbody></table></div>';
 
   main.innerHTML = `
+    ${yearOverview}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
-      <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">Dashboard - ${monthLabel}</h2>
+      <h2 style="font-family:DM Serif Display,serif;font-size:1.8rem;margin:0">${monthLabel}</h2>
     </div>
     ${cards}${bars}<h3 style="font-family:DM Serif Display,serif;font-size:1.2rem;margin-bottom:1rem">Recent Transactions</h3>${recHtml}`;
 }
@@ -1813,11 +1877,8 @@ function renderTabView(main, tabId) {
   const tab = state.tabs.find(t => t.id === tabId);
   if (!tab) return;
 
-  // All expenses in this category
+  // Expenses in this category, selected month only
   const allExpenses = state.expenses.filter(e => e.tabId === tabId).sort((a,b) => new Date(b.date)-new Date(a.date));
-  const total = allExpenses.reduce((s,e) => s+e.amount, 0);
-
-  // Expenses in selected month
   const selectedMonthExpenses = filterByMonth(allExpenses, state.selectedMonth, state.selectedYear);
   const thisMonth = selectedMonthExpenses.reduce((s,e) => s+e.amount, 0);
   const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear);
@@ -1838,10 +1899,7 @@ function renderTabView(main, tabId) {
     </div>
     <div class="overview-grid" style="margin-bottom:1.5rem">
       <div class="stat-card"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:${tab.color}"></div>
-        <div class="stat-label">Total</div><div class="stat-value">$${total.toFixed(2)}</div><div class="stat-sub">${allExpenses.length} transactions</div>
-      </div>
-      <div class="stat-card"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:${tab.color}"></div>
-        <div class="stat-label">Selected Month</div><div class="stat-value">$${thisMonth.toFixed(2)}</div>
+        <div class="stat-label">Total</div><div class="stat-value">$${thisMonth.toFixed(2)}</div><div class="stat-sub">${selectedMonthExpenses.length} transactions</div>
       </div>
     </div>
     <div class="expense-table-wrap"><table class="expense-table">
@@ -2912,9 +2970,10 @@ window.openDeleteCategoriesModal = function() {
   if (state.tabs.length === 0) {
     list.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;text-align:center;padding:1rem">No categories to delete.</p>';
   } else {
+    const monthExpenses = filterByMonth(state.expenses, state.selectedMonth, state.selectedYear);
     state.tabs.forEach(tab => {
-      const count = state.expenses.filter(e => e.tabId === tab.id).length;
-      const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
+      const count = monthExpenses.filter(e => e.tabId === tab.id).length;
+      const total = monthExpenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
 
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0.75rem;border-radius:8px;cursor:pointer;border:1px solid var(--border);transition:background 0.15s;';
@@ -3022,7 +3081,9 @@ window.openMobileCatSheet = function() {
   list.appendChild(superEl);
   // Category items
   state.tabs.forEach(tab => {
-    const total = state.expenses.filter(e => e.tabId === tab.id).reduce((s,e) => s+e.amount, 0);
+    const total = filterByMonth(state.expenses, state.selectedMonth, state.selectedYear)
+      .filter(e => e.tabId === tab.id)
+      .reduce((s,e) => s+e.amount, 0);
     const el = document.createElement('div');
     el.className = 'sidebar-item' + (state.activeTab === tab.id ? ' active' : '');
     el.innerHTML = `<div class="dot" style="background:${tab.color}"></div><span>${tab.name}</span><span class="tab-total" style="margin-left:auto;font-size:0.75rem;color:var(--muted)">$${total.toFixed(0)}</span>`;
