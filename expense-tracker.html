@@ -1778,13 +1778,16 @@ function renderOverview(main) {
   const maxMonthly = Math.max(1, ...monthlyExpensesForYear);
 
   const shortMonthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const maxMonthIdx = monthlyExpensesForYear.reduce((best, v, i) => (v > monthlyExpensesForYear[best] ? i : best), 0);
   const monthlyBars = monthlyExpensesForYear.map((val, idx) => {
     const pct = Math.max(3, (val / maxMonthly) * 100);
     const hasValue = val > 0;
+    const isMax = hasValue && idx === maxMonthIdx;
+    const barColor = isMax ? '#dc2626' : (hasValue ? 'var(--accent)' : 'rgba(143,179,0,0.25)');
     return `
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.15rem;font-size:0.7rem">
         <div style="height:120px;display:flex;align-items:flex-end;justify-content:center;width:100%">
-          <div style="width:8px;border-radius:999px;background:${hasValue ? 'var(--accent)' : 'rgba(143,179,0,0.25)'};height:${pct}%;transition:height 0.3s;"></div>
+          <div style="width:8px;border-radius:999px;background:${barColor};height:${pct}%;transition:height 0.3s;"></div>
         </div>
         <span>${shortMonthLabels[idx]}</span>
         <span style="color:var(--muted);font-size:0.7rem">$${val.toFixed(0)}</span>
@@ -1815,7 +1818,7 @@ function renderOverview(main) {
 
   let cards = `
     <div class="overview-grid">
-      <div class="stat-card" style="--c:#4ade80"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--c)"></div>
+      <div class="stat-card" style="--c:#368a1c"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--c)"></div>
         <div class="stat-label">Income this Month</div>
         <div class="stat-value">$${netIncomeThisMonth.toFixed(0)}</div>
         <div class="stat-sub">Income $${incomeThisMonth.toFixed(0)} · Taxes $${taxesThisMonth.toFixed(0)}</div>
@@ -1823,7 +1826,7 @@ function renderOverview(main) {
       <div class="stat-card" style="--c:${topCat?.color||'#e8ff47'}"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--c)"></div>
         <div class="stat-label">This Month (Expenses)</div>
         <div class="stat-value">$${thisMonth.toFixed(0)}</div>
-        <div class="stat-sub">${state.expenses.length} total transactions</div>
+        <div class="stat-sub">${selectedMonthExpenses.length} transactions this month</div>
       </div>
       <div class="stat-card" style="--c:${topCat?.color||'#888'}"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:${topCat?.color||'#888'}"></div>
         <div class="stat-label">Top Category</div>
