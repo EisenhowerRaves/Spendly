@@ -16,8 +16,9 @@
     --surface2: #a39683;
     --surface3: #f5f0e8;
     --border: #dfdfdf;
-    --accent: #8fb300;
+    --accent: #16a370;
     --accent2: #ff6b35;
+    --accent3:#059669;
     --text: #000000;
     --muted: #000000;
     --housing: #60a5fa;
@@ -175,8 +176,8 @@
   }
   .header-logo {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.4rem;
-    color: var(--accent);
+    font-size: 2.25rem;
+    color: var(--accent3);
   }
   .header-actions { display: flex; gap: 0.75rem; align-items: center; }
   .btn-ghost {
@@ -734,7 +735,7 @@
     .sidebar { display: none; }
     .main-layout { grid-template-columns: 1fr; }
     .header { padding: 0 1rem; height: 52px; }
-    .header-logo { font-size: 1.2rem; }
+    .header-logo { font-size: 1.8rem; }
     .header-actions { gap: 0.5rem; }
     .btn-ghost, .btn-small-accent { padding: 0.45rem 0.65rem; font-size: 0.78rem; }
     .content { padding: 1rem; padding-bottom: 90px; }
@@ -845,6 +846,7 @@
         <span id="fb-status-text">Demo</span>
       </div>
       <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV"><i data-lucide="import"></i></button>
+      <button class="btn-ghost" onclick="exportCSV()" title="Export CSV"><i data-lucide="download"></i></button>
       <button class="btn-ghost" onclick="openCalendarModal()" title="Calendar"><i data-lucide="calendar"></i></button>
       <button class="btn-ghost" onclick="openAddModal()"><i data-lucide="plus"></i></button>
       <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete Categories"><i data-lucide="trash-2"></i></button>
@@ -1302,17 +1304,6 @@
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
-
-<!-- AGENT DEBUG PANEL (temporary) -->
-<details id="agent-debug" style="position:fixed;left:12px;bottom:12px;z-index:10000;max-width:min(720px,calc(100vw - 24px));background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:10px;padding:0.75rem 0.9rem;box-shadow:0 8px 30px rgba(0,0,0,0.12);font-size:12px;color:var(--text);">
-  <summary style="cursor:pointer;font-weight:700;letter-spacing:0.02em;">Debug logs (agent)</summary>
-  <div style="margin-top:0.6rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-    <button class="btn-ghost" type="button" onclick="(function(){try{const el=document.getElementById('agent-debug-log');if(el) el.textContent='';}catch(e){}})()" style="padding:0.35rem 0.6rem;font-size:0.78rem;">Clear</button>
-    <button class="btn-ghost" type="button" onclick="(async function(){try{const el=document.getElementById('agent-debug-log');const txt=(el&&el.textContent)||'';if(!txt){alert('No debug logs yet.');return;}if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(txt);alert('Debug logs copied to clipboard. Paste them into chat.');return;}const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('Debug logs copied. Paste them into chat.');}catch(e){alert('Copy failed: '+(e&&e.message?e.message:e));}})()" style="padding:0.35rem 0.6rem;font-size:0.78rem;">Copy</button>
-    <span style="color:var(--muted);font-size:0.78rem;">Copy/paste this output if something breaks.</span>
-  </div>
-  <pre id="agent-debug-log" style="margin-top:0.6rem;white-space:pre-wrap;max-height:40vh;overflow:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem;"></pre>
-</details>
 
 <script type="module">
 // #region agent log
@@ -2837,9 +2828,43 @@ window.handleCSVFile = function(e) {
   reader.readAsText(file);
 }
 
+function parseCSVRow(line) {
+  // RFC4180-ish: supports quoted fields + commas inside quotes.
+  const out = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        // Escaped quote
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        out.push(cur.trim());
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
 function parseCSV(text, filename) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase());
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+  const headers = (parseCSVRow(lines[0]) || []).map(h => h.trim().replace(/"/g,'').toLowerCase());
   const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('narr') || h.includes('detail') || h.includes('merchant') || h === 'description');
   const amtIdx = headers.findIndex(h => h.includes('amount') || h.includes('debit') || h.includes('credit'));
   const dateIdx = headers.findIndex(h => h.includes('date'));
@@ -2851,7 +2876,7 @@ function parseCSV(text, filename) {
 
   state.pendingCSV = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.trim().replace(/"/g,''));
+    const cols = (parseCSVRow(lines[i]) || []).map(c => c.trim().replace(/"/g,''));
     if (!cols[descIdx] || !cols[amtIdx]) continue;
     const amt = Math.abs(parseFloat(cols[amtIdx].replace(/[^0-9.-]/g,'')));
     if (isNaN(amt) || amt === 0) continue;
@@ -2864,6 +2889,46 @@ function parseCSV(text, filename) {
   document.getElementById('csv-preview-text').textContent = `✓ Found ${state.pendingCSV.length} transactions in "${filename}"`;
   document.getElementById('csv-import-btn').style.opacity = '1';
   document.getElementById('csv-import-btn').style.pointerEvents = 'all';
+}
+
+function csvEscape(v) {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+}
+
+function downloadTextFile(text, filename, mime = 'text/plain;charset=utf-8') {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2500);
+}
+
+window.exportCSV = function() {
+  const monthExpenses = filterByMonth(state.expenses, state.selectedMonth, state.selectedYear);
+  const activeTabObj = state.tabs.find(t => t.id === state.activeTab);
+  const exportExpenses = activeTabObj ? monthExpenses.filter(e => e.tabId === activeTabObj.id) : monthExpenses;
+
+  if (exportExpenses.length === 0) {
+    showToast('No expenses to export for this month');
+    return;
+  }
+
+  const lines = [];
+  lines.push(['Date', 'Description', 'Amount', 'Category', 'Note'].map(csvEscape).join(','));
+  for (const e of [...exportExpenses].sort((a, b) => new Date(a.date) - new Date(b.date))) {
+    const category = state.tabs.find(t => t.id === e.tabId)?.name || '';
+    lines.push([e.date, e.desc, e.amount.toFixed(2), category, e.note || ''].map(csvEscape).join(','));
+  }
+
+  const monthLabel = getMonthDisplayName(state.selectedMonth, state.selectedYear).replace(/\s+/g, '-');
+  const scope = activeTabObj ? activeTabObj.name.replace(/[^\w.-]+/g, '-') : 'All-Categories';
+  downloadTextFile(lines.join('\n'), `Spendly-${monthLabel}-${scope}.csv`, 'text/csv;charset=utf-8');
+  showToast(`Exported ${exportExpenses.length} expense(s) ✓`);
 }
 
 window.importCSV = async function() {
