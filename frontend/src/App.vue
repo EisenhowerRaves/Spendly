@@ -1,85 +1,198 @@
-<script setup>
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
+  <template v-if="authReady">
+    <div v-if="!isLoggedIn">
+      <LoginScreen @open-register="showRegister = true" />
+      <RegisterModal :visible="showRegister" @close="showRegister = false" />
     </div>
-  </header>
-
-  <RouterView />
+    <template v-else>
+      <AppHeader
+        @open-csv-modal="todo('CSV modal')"
+        @export-csv="todo('Export CSV')"
+        @open-calendar-modal="todo('Calendar modal')"
+        @open-add-modal="todo('Add expense modal')"
+        @open-delete-categories-modal="todo('Delete categories modal')"
+        @toggle-chat="todo('Chat panel')"
+      />
+      <div class="main-layout">
+        <Sidebar @open-new-tab-modal="todo('New tab modal')" />
+        <main class="content">
+          <Dashboard v-if="store.activeTab === 'overview'" />
+          <div v-else class="tab-placeholder">
+            <p>{{ store.activeTab }} view — coming in a later step</p>
+          </div>
+        </main>
+      </div>
+    </template>
+  </template>
+  <div v-else class="loading-screen">
+    <p>Loading…</p>
+  </div>
+  <div class="toast" :class="{ show: toastMsg }">{{ toastMsg }}</div>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+<script setup>
+import { ref, onMounted } from 'vue'
+import { onAuthStateChanged } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import { auth, db } from '@/firebase'
+import { useAppStore } from '@/stores/useAppStore'
+import LoginScreen from '@/components/auth/LoginScreen.vue'
+import RegisterModal from '@/components/auth/RegisterModal.vue'
+import AppHeader from '@/components/layout/AppHeader.vue'
+import Sidebar from '@/components/layout/Sidebar.vue'
+import Dashboard from '@/components/dashboard/Dashboard.vue'
+
+const store = useAppStore()
+
+const isLoggedIn = ref(false)
+const authReady = ref(false)
+const showRegister = ref(false)
+const toastMsg = ref('')
+
+function todo(label) {
+  window.__spendlyToast?.(`${label} — coming soon`)
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
+onMounted(() => {
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      store.currentUserId = user.uid
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', user.uid))
+        store.currentUserProfile = profileSnap.exists() ? profileSnap.data() : {}
+      } catch {
+        store.currentUserProfile = {}
+      }
+      await store.loadFromFirebase()
+      isLoggedIn.value = true
+    } else {
+      localStorage.removeItem('spendly_user')
+      localStorage.removeItem('spendly_state')
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('spendly_'))
+        .forEach((k) => localStorage.removeItem(k))
+      isLoggedIn.value = false
+      showRegister.value = false
+    }
+    authReady.value = true
+  })
+})
 
-nav {
+window.__spendlyToast = (msg) => {
+  toastMsg.value = msg
+  setTimeout(() => (toastMsg.value = ''), 2500)
+}
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #f5f0e8;
+  --surface: #d6cdc0;
+  --surface2: #a39683;
+  --surface3: #f5f0e8;
+  --border: #dfdfdf;
+  --border2: #000000;
+  --accent: #16a370;
+  --accent2: #ff6b35;
+  --accent3: #059669;
+  --text: #000000;
+  --muted: #000000;
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+.btn-accent {
+  background: var(--accent);
+  color: #0f0f0f;
+  border: none;
+  border-radius: 8px;
+  padding: 0.85rem 1.5rem;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
   width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
+}
+.btn-accent:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.btn-accent:active {
+  transform: translateY(0);
+}
+.btn-accent:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-nav a.router-link-exact-active {
-  color: var(--color-text);
+/* LAYOUT */
+.main-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: calc(100vh - 60px);
+}
+.content {
+  padding: 2rem;
+  overflow-y: auto;
 }
 
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: var(--muted);
 }
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
+.tab-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.2rem;
+  color: var(--muted);
 }
-
-nav a:first-of-type {
-  border: 0;
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  z-index: 999;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
 }
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@media (max-width: 768px) {
+  .main-layout {
+    grid-template-columns: 1fr;
   }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
+  .content {
+    padding: 1rem;
+    padding-bottom: 90px;
   }
 }
 </style>
