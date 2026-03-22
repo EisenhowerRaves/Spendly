@@ -9,7 +9,7 @@
         @open-csv-modal="todo('CSV modal')"
         @export-csv="todo('Export CSV')"
         @open-calendar-modal="todo('Calendar modal')"
-        @open-add-modal="todo('Add expense modal')"
+        @open-add-modal="openAddExpense"
         @open-delete-categories-modal="todo('Delete categories modal')"
         @toggle-chat="todo('Chat panel')"
       />
@@ -17,11 +17,32 @@
         <Sidebar @open-new-tab-modal="todo('New tab modal')" />
         <main class="content">
           <Dashboard v-if="store.activeTab === 'overview'" />
+          <CategoryView
+            v-else-if="isCategory"
+            :tab-id="store.activeTab"
+            @open-add-expense="openAddExpense"
+            @open-delete-expenses="showDeleteExpenses = true"
+            @open-copy-expenses="showCopyExpenses = true"
+            @edit-expense="openEditExpense"
+          />
           <div v-else class="tab-placeholder">
             <p>{{ store.activeTab }} view — coming in a later step</p>
           </div>
         </main>
       </div>
+
+      <AddExpenseModal
+        :visible="showAddExpense"
+        :preselected-tab="isCategory ? store.activeTab : ''"
+        @close="showAddExpense = false"
+      />
+      <EditExpenseModal
+        :visible="showEditExpense"
+        :expense-id="editingExpenseId"
+        @close="closeEditExpense"
+      />
+      <DeleteExpensesModal :visible="showDeleteExpenses" @close="showDeleteExpenses = false" />
+      <CopyExpensesModal :visible="showCopyExpenses" @close="showCopyExpenses = false" />
     </template>
   </template>
   <div v-else class="loading-screen">
@@ -31,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase'
@@ -41,6 +62,11 @@ import RegisterModal from '@/components/auth/RegisterModal.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import Sidebar from '@/components/layout/Sidebar.vue'
 import Dashboard from '@/components/dashboard/Dashboard.vue'
+import CategoryView from '@/components/category/CategoryView.vue'
+import AddExpenseModal from '@/components/modals/AddExpenseModal.vue'
+import EditExpenseModal from '@/components/modals/EditExpenseModal.vue'
+import DeleteExpensesModal from '@/components/modals/DeleteExpensesModal.vue'
+import CopyExpensesModal from '@/components/modals/CopyExpensesModal.vue'
 
 const store = useAppStore()
 
@@ -48,6 +74,31 @@ const isLoggedIn = ref(false)
 const authReady = ref(false)
 const showRegister = ref(false)
 const toastMsg = ref('')
+
+const showAddExpense = ref(false)
+const showEditExpense = ref(false)
+const showDeleteExpenses = ref(false)
+const showCopyExpenses = ref(false)
+const editingExpenseId = ref(null)
+
+const isCategory = computed(() =>
+  store.activeTab !== 'overview' &&
+  store.activeTab !== 'income' &&
+  store.activeTab !== 'taxes' &&
+  store.activeTab !== 'super',
+)
+
+function openAddExpense() {
+  showAddExpense.value = true
+}
+function openEditExpense(id) {
+  editingExpenseId.value = id
+  showEditExpense.value = true
+}
+function closeEditExpense() {
+  showEditExpense.value = false
+  editingExpenseId.value = null
+}
 
 function todo(label) {
   window.__spendlyToast?.(`${label} — coming soon`)

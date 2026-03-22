@@ -2,6 +2,8 @@
   <nav class="sidebar">
     <div class="sidebar-label">Overview</div>
     <div
+      role="button"
+      tabindex="0"
       class="sidebar-item"
       :class="{ active: store.activeTab === 'overview' }"
       @click="store.activeTab = 'overview'"
@@ -10,6 +12,8 @@
       <span>Dashboard</span>
     </div>
     <div
+      role="button"
+      tabindex="0"
       class="sidebar-item"
       :class="{ active: store.activeTab === 'income' }"
       @click="store.activeTab = 'income'"
@@ -18,6 +22,8 @@
       <span>Income</span>
     </div>
     <div
+      role="button"
+      tabindex="0"
       class="sidebar-item"
       :class="{ active: store.activeTab === 'taxes' }"
       @click="store.activeTab = 'taxes'"
@@ -26,6 +32,8 @@
       <span>Taxes</span>
     </div>
     <div
+      role="button"
+      tabindex="0"
       class="sidebar-item"
       :class="{ active: store.activeTab === 'super' }"
       @click="store.activeTab = 'super'"
@@ -38,6 +46,8 @@
     <div
       v-for="tab in store.sidebarTabs"
       :key="tab.id"
+      role="button"
+      tabindex="0"
       class="sidebar-item"
       :class="{ active: store.activeTab === tab.id }"
       @click="store.activeTab = tab.id"
@@ -47,7 +57,7 @@
       <span class="tab-total">${{ tab.total.toFixed(0) }}</span>
     </div>
 
-    <div class="sidebar-add-tab" @click="$emit('open-new-tab-modal')">
+    <div role="button" tabindex="0" class="sidebar-add-tab" @click="$emit('open-new-tab-modal')">
       <span>＋</span> New Category
     </div>
   </nav>

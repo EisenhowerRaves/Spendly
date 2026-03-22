@@ -275,6 +275,57 @@ export const useAppStore = defineStore('app', {
       await setDoc(this._udoc('expenses', expense.id), expense)
     },
 
+    // ─── Expense CRUD ─────────────────────────────────────────────
+    async addExpense(expense) {
+      this.expenses.push(expense)
+      await this.fbSaveExpense(expense)
+      this.saveLocal()
+    },
+    async updateExpense(expense) {
+      const idx = this.expenses.findIndex((e) => e.id === expense.id)
+      if (idx !== -1) this.expenses[idx] = { ...expense }
+      await this.fbUpdateExpense(expense)
+      this.saveLocal()
+    },
+    async deleteExpenses(ids) {
+      for (const id of ids) {
+        this.expenses = this.expenses.filter((e) => e.id !== id)
+        await this.fbDeleteExpense(id)
+      }
+      this.selectedExpenseIds = []
+      this.saveLocal()
+    },
+    async copyExpenses(ids, targetTabId, date, amount) {
+      const copied = []
+      for (const id of ids) {
+        const orig = this.expenses.find((e) => e.id === id)
+        if (!orig) continue
+        const dup = {
+          id: crypto.randomUUID(),
+          desc: orig.desc,
+          amount: amount !== null && !isNaN(amount) ? amount : orig.amount,
+          tabId: targetTabId,
+          date,
+          note: orig.note || '',
+        }
+        this.expenses.push(dup)
+        await this.fbSaveExpense(dup)
+        copied.push(dup)
+      }
+      this.selectedExpenseIds = []
+      this.saveLocal()
+      return copied.length
+    },
+
+    // ─── Category CRUD ──────────────────────────────────────────
+    async renameCategory(tabId, newName) {
+      const tab = this.tabs.find((t) => t.id === tabId)
+      if (!tab) return
+      tab.name = newName
+      await this.fbSaveTab(tab)
+      this.saveLocal()
+    },
+
     // ─── Month navigation ───────────────────────────────────────────
     prevMonth() {
       if (this.selectedMonth === 0) {
