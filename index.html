@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>Spendly — Your Money, Sorted</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen" style="display:none">
+
+  <!-- LOGIN FORM -->
+  <div id="login-form">
+    <h1>Spendly</h1>
+    <p>Track your expenses, your way.</p>
+    <div class="setup-card">
+      <div class="form-group" style="gap:0.4rem;display:flex;flex-direction:column">
+        <label>Email:</label>
+        <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group" style="gap:0.4rem;display:flex;flex-direction:column">
+        <label>Password:</label>
+        <div class="password-wrapper">
+          <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+          <button type="button" class="toggle-password" onclick="togglePasswordVisibility('login-password', this)">
+            <i data-lucide="eye"></i>
+          </button>
+        </div>
+      </div>
+      <button class="btn-accent" id="login-btn" onclick="handleLoginClick()">Log in</button>
+      <p class="setup-note" style="text-align:center">
+        Don't have an account? <a href="#" onclick="showRegisterScreen();return false;">Create new account</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-logo">Spendly<span id="header-preferred-name" style="font-size:0.75em;color:#1a1a1a;opacity:0.85;font-family:inherit;font-weight:400;margin-left:1rem">Hi <span id="header-name-text"></span></span></div>
+    <div class="header-actions">
+      <div class="fb-status disconnected" id="fb-status-badge">
+        <div class="dot"></div>
+        <span id="fb-status-text">Demo</span>
+      </div>
+      <button class="btn-ghost" onclick="openCSVModal()" title="Import CSV"><i data-lucide="import"></i></button>
+      <button class="btn-ghost" onclick="exportCSV()" title="Export CSV"><i data-lucide="download"></i></button>
+      <button class="btn-ghost" onclick="openCalendarModal()" title="Calendar"><i data-lucide="calendar"></i></button>
+      <button class="btn-ghost" onclick="openAddModal()"><i data-lucide="plus"></i></button>
+      <button class="btn-ghost" onclick="openDeleteCategoriesModal()" title="Delete Categories"><i data-lucide="trash-2"></i></button>
+      <button class="btn-ghost" onclick="logOut()" title="Log out"><i data-lucide="log-out"></i></button>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <div class="sidebar-label">Overview</div>
+      <div class="sidebar-item active" onclick="switchTab('overview')" id="nav-overview">
+        <div class="dot" style="background:#e8ff47"></div>
+        <span>Dashboard</span>
+      </div>
+      <div class="sidebar-item" onclick="switchTab('income')" id="nav-income">
+        <div class="dot" style="background:#368a1c"></div>
+        <span>Income</span>
+      </div>
+      <div class="sidebar-item" onclick="switchTab('taxes')" id="nav-taxes">
+        <div class="dot" style="background:#a51f07"></div>
+        <span>Taxes</span>
+      </div>
+      <div class="sidebar-item" onclick="switchTab('super')" id="nav-super">
+        <div class="dot" style="background:#2563eb"></div>
+        <span>Super</span>
+      </div>
+      <div class="sidebar-label">Expense Categories</div>
+      <div id="sidebar-tabs"></div>
+      <div class="sidebar-add-tab" onclick="openNewTabModal()">
+        <span>＋</span> New Category
+      </div>
+    </nav>
+
+    <!-- CONTENT -->
+    <main class="content" id="main-content">
+      <!-- dynamically rendered -->
+    </main>
+  </div>
+
+  <!-- AI CHAT PANEL -->
+  <div class="chat-panel" id="chat-panel">
+    <div class="chat-header">
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <h3>Spendly Chat</h3>
+        <span class="ai-badge">Agent: Tom</span>
+      </div>
+      <button class="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="msg ai">G'day mate I'm your fair-dinkum AI spending assistant. Ask me anything about your expenses — "Where am I overspending?", "Summarise this month", "What's my biggest category?" — I'll get you sorted.</div>
+      <div class="msg ai">prompt the agent Tom for him to do anything you ask. Just ask 'Hey Tom, you ready mate' and Tom will come to you</div>
+    </div>
+    <div class="chat-input-row">
+      <textarea class="chat-input" id="chat-input" placeholder="Ask about your spending..." rows="1" onkeydown="handleChatKey(event)"></textarea>
+      <button class="chat-send" onclick="sendChat()">↑</button>
+    </div>
+  </div>
+  <button class="chat-launcher" id="chat-launcher" onclick="toggleChat()" title="Spendly Assistant" aria-label="Toggle Spendly Assistant">
+    <i data-lucide="bot"></i>
+  </button>
+</div>
+
+<!-- ADD EXPENSE MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <h3>Add Expense</h3>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="exp-category"></select>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="exp-desc" placeholder="e.g. Woolworths groceries" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="exp-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="exp-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveExpense()" style="flex:2">Add Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD INCOME MODAL -->
+<div class="modal-overlay" id="add-income-modal">
+  <div class="modal">
+    <h3>Add Income</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="income-desc" placeholder="e.g. Salary, Freelance" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="income-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="income-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="income-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddIncomeModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveIncome()" style="flex:2">Add Income</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV MODAL -->
+<div class="modal-overlay" id="csv-modal">
+  <div class="modal">
+    <h3>Import CSV</h3>
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem">Export a CSV from your bank and upload it here. Expected columns: <strong>Date, Description, Amount</strong> (Debit/Credit also supported).</p>
+    <div class="csv-drop-zone" id="csv-drop" onclick="document.getElementById('csv-file-input').click()">
+      <span>📄</span>
+      Drop your CSV here or click to browse
+    </div>
+    <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="handleCSVFile(event)" />
+    <div id="csv-preview-text" class="csv-preview"></div>
+    <div class="form-group" style="margin-top:1rem">
+      <label>Import into category</label>
+      <select id="csv-category"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCSVModal()">Cancel</button>
+      <button class="btn-accent" id="csv-import-btn" onclick="importCSV()" style="flex:2;opacity:0.4;pointer-events:none">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW TAB MODAL -->
+<div class="modal-overlay" id="newtab-modal">
+  <div class="modal">
+    <h3>New Category</h3>
+    <div class="form-group">
+      <label>Category Name</label>
+      <input type="text" id="new-tab-name" placeholder="e.g. Travel, Pets, Savings..." />
+    </div>
+    <div class="form-group">
+      <label>Colour</label>
+      <div class="color-picker" id="color-picker"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeNewTabModal()">Cancel</button>
+      <button class="btn-accent" onclick="createTab()" style="flex:2">Create Category</button>
+    </div>
+  </div>
+</div>
+
+<!-- CALENDAR MODAL -->
+<div class="modal-overlay" id="calendar-modal">
+  <div class="modal">
+    <h3>Select Month</h3>
+    <div class="calendar-grid">
+      <button class="month-btn" onclick="selectMonth(0, 'Jan')">Jan</button>
+      <button class="month-btn" onclick="selectMonth(1, 'Feb')">Feb</button>
+      <button class="month-btn" onclick="selectMonth(2, 'Mar')">Mar</button>
+      <button class="month-btn" onclick="selectMonth(3, 'Apr')">Apr</button>
+      <button class="month-btn" onclick="selectMonth(4, 'May')">May</button>
+      <button class="month-btn" onclick="selectMonth(5, 'Jun')">Jun</button>
+      <button class="month-btn" onclick="selectMonth(6, 'Jul')">Jul</button>
+      <button class="month-btn" onclick="selectMonth(7, 'Aug')">Aug</button>
+      <button class="month-btn" onclick="selectMonth(8, 'Sept')">Sept</button>
+      <button class="month-btn" onclick="selectMonth(9, 'Oct')">Oct</button>
+      <button class="month-btn" onclick="selectMonth(10, 'Nov')">Nov</button>
+      <button class="month-btn" onclick="selectMonth(11, 'Dec')">Dec</button>
+    </div>
+    <div class="modal-actions" style="margin-top:2rem">
+      <button class="btn-cancel" onclick="closeCalendarModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- COPY/DUPLICATE EXPENSES MODAL -->
+<div class="modal-overlay" id="copy-expenses-modal">
+  <div class="modal">
+    <h3>Duplicate Expenses</h3>
+    <div style="margin-bottom:1rem;display:flex;gap:0.5rem">
+      <button class="btn-ghost" onclick="toggleSelectAllExpenses()" style="flex:1">Select All</button>
+      <button class="btn-ghost" onclick="toggleDeselectAllExpenses()" style="flex:1">Deselect All</button>
+    </div>
+    <div id="copy-expenses-list" style="max-height:300px;overflow-y:auto;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCopyExpensesModal()">Cancel</button>
+      <button class="btn-accent" id="copy-btn" onclick="confirmCopyExpenses()" style="flex:2">Duplicate Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENAME CATEGORY MODAL -->
+<div class="modal-overlay" id="rename-category-modal">
+  <div class="modal">
+    <h3>Rename Category</h3>
+    <div style="margin-bottom:1rem;font-size:0.9rem;color:var(--muted)">
+      <span>Current name: </span>
+      <span id="old-category-name" style="font-weight:600;color:var(--text)"></span>
+    </div>
+    <div class="form-group">
+      <label>New Name</label>
+      <input type="text" id="new-category-name" placeholder="Enter new category name" autofocus>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRenameCategoryModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmRenameCategory()" style="flex:2">Rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT EXPENSE MODAL -->
+<div class="modal-overlay" id="edit-expense-modal">
+  <div class="modal">
+    <h3>Edit Expense</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="edit-exp-desc" placeholder="e.g. Woolworths groceries" autofocus>
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="edit-exp-amount" placeholder="0.00" step="0.01" min="0">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="edit-exp-category"></select>
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="edit-exp-date">
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="edit-exp-note" placeholder="Any extra detail...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditExpenseModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveEditedExpense()" style="flex:2">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- COPY EXPENSES TO CATEGORY MODAL -->
+<div class="modal-overlay" id="copy-expenses-to-category-modal">
+  <div class="modal">
+    <h3>Copy Selected Expenses</h3>
+    <div id="copy-preview-list" style="max-height:200px;overflow-y:auto;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px;padding:0.5rem"></div>
+    <div class="form-group">
+      <label>Copy to Category</label>
+      <select id="copy-target-category"></select>
+    </div>
+    <div class="form-group">
+      <label>Select Date</label>
+      <input type="date" id="copy-target-date">
+    </div>
+    <div class="form-group">
+      <label>Select Amount</label>
+      <input type="number" id="copy-exp-amount" placeholder="0.00" step="0.01" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCopyExpensesToCategoryModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmCopyExpensesToCategory()" style="flex:2">Copy</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE EXPENSES CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-expenses-confirm-modal">
+  <div class="modal">
+    <h3>Delete Expenses</h3>
+    <p id="delete-expenses-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteExpensesConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteExpensesAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE INCOME CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-income-confirm-modal">
+  <div class="modal">
+    <h3>Delete Income</h3>
+    <p id="delete-income-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteIncomeConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteIncomeAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD TAXES MODAL -->
+<div class="modal-overlay" id="add-taxes-modal">
+  <div class="modal">
+    <h3>Add Taxes</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="taxes-desc" placeholder="e.g. PAYG, ATO" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="taxes-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="taxes-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="taxes-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddTaxesModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveTaxes()" style="flex:2">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE TAXES CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-taxes-confirm-modal">
+  <div class="modal">
+    <h3>Delete Taxes</h3>
+    <p id="delete-taxes-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteTaxesConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteTaxesAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD SUPER MODAL -->
+<div class="modal-overlay" id="add-super-modal">
+  <div class="modal">
+    <h3>Add Super</h3>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="super-desc" placeholder="e.g. Employer contribution" />
+    </div>
+    <div class="form-group">
+      <label>Amount (AUD $)</label>
+      <input type="number" id="super-amount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="super-date" />
+    </div>
+    <div class="form-group">
+      <label>Note (optional)</label>
+      <input type="text" id="super-note" placeholder="Any extra detail..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddSuperModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveSuper()" style="flex:2">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE SUPER CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-super-confirm-modal">
+  <div class="modal">
+    <h3>Delete Super</h3>
+    <p id="delete-super-confirm-msg" style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:0.25rem"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteSuperConfirmModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteSuperAction()" style="flex:2;background:#ff4444;color:#fff">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CATEGORIES MODAL -->
+<div class="modal-overlay" id="delete-categories-modal">
+  <div class="modal">
+    <h3>Delete Categories</h3>
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem">Select the categories you want to delete. All expenses within them will also be deleted.</p>
+    <div id="delete-categories-list" style="display:flex;flex-direction:column;gap:0.5rem;max-height:50vh;overflow-y:auto;margin-bottom:0.5rem"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteCategoriesModal()">Cancel</button>
+      <button class="btn-accent" onclick="confirmDeleteCategories()" style="flex:2;background:#ff4444;color:#fff">Delete Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="modal-overlay" id="register-modal">
+  <div class="modal">
+    <h3>Spendly New Account</h3>
+    <div class="form-group">
+      <label>Name:</label>
+      <input type="text" id="reg-name" placeholder="First name" autocomplete="given-name">
+    </div>
+    <div class="form-group">
+      <label>Surname:</label>
+      <input type="text" id="reg-surname" placeholder="Last name" autocomplete="family-name">
+    </div>
+    <div class="form-group">
+      <label>Preferred name:</label>
+      <input type="text" id="reg-preferred-name" placeholder="How should we call you?">
+    </div>
+    <div class="form-group">
+      <label>Email:</label>
+      <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password:</label>
+      <div class="password-wrapper">
+        <input type="password" id="reg-password" placeholder="Choose a password" autocomplete="new-password">
+        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('reg-password', this)">
+          <i data-lucide="eye"></i>
+        </button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('register-modal').classList.remove('open');document.getElementById('reg-name').value='';document.getElementById('reg-surname').value='';document.getElementById('reg-preferred-name').value='';document.getElementById('reg-email').value='';document.getElementById('reg-password').value='';">Cancel</button>
+      <button class="btn-accent" id="reg-btn" onclick="handleRegisterClick()" style="flex:2">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="bottom-nav-item active" id="bn-overview" onclick="switchTab('overview')">
+    <span class="nav-icon"><i data-lucide="circle-gauge"></i></span>
+    <span class="nav-label">Dashboard</span>
+  </button>
+  <button class="bottom-nav-item" id="bn-cats" onclick="openMobileCatSheet()">
+    <span class="nav-icon"><i data-lucide="folders"></i></span>
+    <span class="nav-label">Categories</span>
+  </button>
+  <button class="bottom-nav-fab" onclick="openAddModal()">+</button>
+  <button class="bottom-nav-item" id="bn-csv" onclick="openCSVModal()">
+    <span class="nav-icon"><i data-lucide="import"></i></span>
+    <span class="nav-label">Import</span>
+  </button>
+  <button class="bottom-nav-item" id="bn-ai" onclick="toggleChat()">
+    <span class="nav-icon"><i data-lucide="bot"></i></span>
+    <span class="nav-label">AI</span>
+  </button>
+</nav>
+
+<!-- MOBILE CATEGORY SHEET -->
+<div class="modal-overlay" id="mobile-cat-sheet">
+  <div class="modal" style="position:fixed;bottom:0;left:0;right:0;border-radius:20px 20px 0 0;max-width:100%;margin:0;padding:1.5rem 1rem 2rem;">
+    <div style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 1.25rem;"></div>
+    <h3 style="font-family:DM Serif Display,serif;margin-bottom:1rem;font-size:1.2rem">Categories</h3>
+    <div id="mobile-cat-list" style="display:flex;flex-direction:column;gap:0.5rem;max-height:60vh;overflow-y:auto;"></div>
+    <button class="sidebar-add-tab" style="margin-top:1rem;width:100%;justify-content:center" onclick="closeModalSheet('mobile-cat-sheet');openNewTabModal()">＋ New Category</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+
+<script type="module" src="app.js"></script>
+<script>
+// These UI toggle functions must be in a plain script (not module) so
+// onclick attributes can reach them immediately on page load.
+function showRegisterScreen() {
+  document.getElementById('register-modal').classList.add('open');
+}
+function showLoginScreen() {
+  document.getElementById('register-modal').classList.remove('open');
+}
+function handleLoginClick() {
+  if (window.handleLogin) window.handleLogin();
+}
+function handleRegisterClick() {
+  if (window.handleRegister) window.handleRegister();
+}
+</script>
+
+</body>
+</html>

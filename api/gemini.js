@@ -18,11 +18,11 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Missing or invalid "message" in body' });
   }
 
-  const systemText = `You are a friendly, sharp personal finance assistant embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary || '{}'}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.`;
+  const systemText = `You are Tom, a friendly, sharp personal finance agent embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary || '{}'}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.`;
 
   try {
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

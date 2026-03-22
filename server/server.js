@@ -27,11 +27,11 @@ app.post('/api/gemini', async (req, res) => {
     return res.status(400).json({ error: 'Missing or invalid "message" in body' });
   }
 
-  const systemText = `You are a friendly, sharp personal finance assistant embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary || '{}'}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.`;
+  const systemText = `You are Tom, a friendly, sharp personal finance agent embedded in an expense tracking app called Spendly. The user's current expense data is: ${summary || '{}'}. Give concise, actionable insights. Use AUD ($). Be direct, conversational, not overly formal. Max 3-4 sentences unless a breakdown is asked for.`;
 
   try {
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,7 +56,7 @@ app.post('/api/gemini', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Spendly server running at http://localhost:${PORT}`);
-  console.log(`Open: http://localhost:${PORT}/expense-tracker.html`);
+  console.log(`Open: http://localhost:${PORT}/index.html`);
   if (!process.env.GEMINI_API_KEY) {
     console.warn('Warning: GEMINI_API_KEY not set. Set it in .env or environment for SpendlyBot to work.');
   }
