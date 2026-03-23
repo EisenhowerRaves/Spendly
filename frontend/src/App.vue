@@ -6,15 +6,15 @@
     </div>
     <template v-else>
       <AppHeader
-        @open-csv-modal="todo('CSV modal')"
-        @export-csv="todo('Export CSV')"
-        @open-calendar-modal="todo('Calendar modal')"
+        @open-csv-modal="showCSV = true"
+        @export-csv="doExport"
+        @open-calendar-modal="showCalendar = true"
         @open-add-modal="openAddExpense"
-        @open-delete-categories-modal="todo('Delete categories modal')"
-        @toggle-chat="todo('Chat panel')"
+        @open-delete-categories-modal="showDeleteCategories = true"
+        @toggle-chat="showChat = !showChat"
       />
       <div class="main-layout">
-        <Sidebar @open-new-tab-modal="todo('New tab modal')" />
+        <Sidebar @open-new-tab-modal="showNewCategory = true" />
         <main class="content">
           <Dashboard v-if="store.activeTab === 'overview'" />
           <CategoryView
@@ -25,12 +25,28 @@
             @open-copy-expenses="showCopyExpenses = true"
             @edit-expense="openEditExpense"
           />
+          <IncomeView
+            v-else-if="store.activeTab === 'income'"
+            @open-add="openAddEntry('income')"
+            @edit="openEditEntry('income', $event)"
+          />
+          <TaxView
+            v-else-if="store.activeTab === 'taxes'"
+            @open-add="openAddEntry('taxes')"
+            @edit="openEditEntry('taxes', $event)"
+          />
+          <SuperView
+            v-else-if="store.activeTab === 'super'"
+            @open-add="openAddEntry('super')"
+            @edit="openEditEntry('super', $event)"
+          />
           <div v-else class="tab-placeholder">
-            <p>{{ store.activeTab }} view — coming in a later step</p>
+            <p>{{ store.activeTab }} view</p>
           </div>
         </main>
       </div>
 
+      <!-- Expense modals (existing from Step 4) -->
       <AddExpenseModal
         :visible="showAddExpense"
         :preselected-tab="isCategory ? store.activeTab : ''"
@@ -43,6 +59,35 @@
       />
       <DeleteExpensesModal :visible="showDeleteExpenses" @close="showDeleteExpenses = false" />
       <CopyExpensesModal :visible="showCopyExpenses" @close="showCopyExpenses = false" />
+
+      <!-- New modals (Step 5) -->
+      <CalendarModal :visible="showCalendar" @close="showCalendar = false" />
+      <CSVImportModal :visible="showCSV" @close="showCSV = false" />
+      <NewCategoryModal :visible="showNewCategory" @close="showNewCategory = false" />
+      <DeleteCategoriesModal :visible="showDeleteCategories" @close="showDeleteCategories = false" />
+      <AddEntryModal
+        :visible="showAddEntry"
+        :label="entryLabel"
+        :collection="entryCollection"
+        @close="showAddEntry = false"
+      />
+      <AddEntryModal
+        :visible="showEditEntry"
+        :label="entryLabel"
+        :collection="entryCollection"
+        :edit-id="editingEntryId"
+        @close="closeEditEntry"
+      />
+
+      <!-- Chat panel -->
+      <AIChatPanel :visible="showChat" @close="showChat = false" />
+
+      <!-- Bottom nav (mobile only) -->
+      <BottomNav
+        @open-add-expense="openAddExpense"
+        @open-csv="showCSV = true"
+        @toggle-chat="showChat = !showChat"
+      />
     </template>
   </template>
   <div v-else class="loading-screen">
@@ -57,16 +102,29 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase'
 import { useAppStore } from '@/stores/useAppStore'
+
 import LoginScreen from '@/components/auth/LoginScreen.vue'
 import RegisterModal from '@/components/auth/RegisterModal.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import Sidebar from '@/components/layout/Sidebar.vue'
 import Dashboard from '@/components/dashboard/Dashboard.vue'
 import CategoryView from '@/components/category/CategoryView.vue'
+import IncomeView from '@/components/views/IncomeView.vue'
+import TaxView from '@/components/views/TaxView.vue'
+import SuperView from '@/components/views/SuperView.vue'
+
 import AddExpenseModal from '@/components/modals/AddExpenseModal.vue'
 import EditExpenseModal from '@/components/modals/EditExpenseModal.vue'
 import DeleteExpensesModal from '@/components/modals/DeleteExpensesModal.vue'
 import CopyExpensesModal from '@/components/modals/CopyExpensesModal.vue'
+import CalendarModal from '@/components/modals/CalendarModal.vue'
+import CSVImportModal from '@/components/modals/CSVImportModal.vue'
+import NewCategoryModal from '@/components/modals/NewCategoryModal.vue'
+import DeleteCategoriesModal from '@/components/modals/DeleteCategoriesModal.vue'
+import AddEntryModal from '@/components/modals/AddEntryModal.vue'
+
+import AIChatPanel from '@/components/chat/AIChatPanel.vue'
+import BottomNav from '@/components/layout/BottomNav.vue'
 
 const store = useAppStore()
 
@@ -75,11 +133,26 @@ const authReady = ref(false)
 const showRegister = ref(false)
 const toastMsg = ref('')
 
+// Expense modals
 const showAddExpense = ref(false)
 const showEditExpense = ref(false)
 const showDeleteExpenses = ref(false)
 const showCopyExpenses = ref(false)
 const editingExpenseId = ref(null)
+
+// New modals
+const showCalendar = ref(false)
+const showCSV = ref(false)
+const showNewCategory = ref(false)
+const showDeleteCategories = ref(false)
+const showChat = ref(false)
+
+// Income / Tax / Super entry modal
+const showAddEntry = ref(false)
+const showEditEntry = ref(false)
+const entryCollection = ref('income')
+const entryLabel = ref('Income')
+const editingEntryId = ref(null)
 
 const isCategory = computed(() =>
   store.activeTab !== 'overview' &&
@@ -88,20 +161,19 @@ const isCategory = computed(() =>
   store.activeTab !== 'super',
 )
 
-function openAddExpense() {
-  showAddExpense.value = true
-}
-function openEditExpense(id) {
-  editingExpenseId.value = id
-  showEditExpense.value = true
-}
-function closeEditExpense() {
-  showEditExpense.value = false
-  editingExpenseId.value = null
-}
+function openAddExpense() { showAddExpense.value = true }
+function openEditExpense(id) { editingExpenseId.value = id; showEditExpense.value = true }
+function closeEditExpense() { showEditExpense.value = false; editingExpenseId.value = null }
 
-function todo(label) {
-  window.__spendlyToast?.(`${label} — coming soon`)
+const labelMap = { income: 'Income', taxes: 'Taxes', super: 'Super' }
+function openAddEntry(col) { entryCollection.value = col; entryLabel.value = labelMap[col]; editingEntryId.value = null; showAddEntry.value = true }
+function openEditEntry(col, id) { entryCollection.value = col; entryLabel.value = labelMap[col]; editingEntryId.value = id; showEditEntry.value = true }
+function closeEditEntry() { showEditEntry.value = false; editingEntryId.value = null }
+
+function doExport() {
+  const count = store.exportCSV()
+  if (!count) window.__spendlyToast?.('No expenses to export for this month')
+  else window.__spendlyToast?.(`Exported ${count} expense(s)`)
 }
 
 onMounted(() => {

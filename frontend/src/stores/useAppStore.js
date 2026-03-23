@@ -317,7 +317,76 @@ export const useAppStore = defineStore('app', {
       return copied.length
     },
 
+    // ─── Income CRUD (local-only) ──────────────────────────────
+    addIncome(entry) {
+      this.income.push(entry)
+      this.saveLocal()
+    },
+    updateIncome(entry) {
+      const idx = this.income.findIndex((e) => e.id === entry.id)
+      if (idx !== -1) this.income[idx] = { ...entry }
+      this.saveLocal()
+    },
+    deleteIncomes(ids) {
+      this.income = this.income.filter((e) => !ids.includes(e.id))
+      this.selectedIncomeIds = []
+      this.saveLocal()
+    },
+
+    // ─── Taxes CRUD (local-only) ────────────────────────────────
+    addTax(entry) {
+      this.taxes.push(entry)
+      this.saveLocal()
+    },
+    updateTax(entry) {
+      const idx = this.taxes.findIndex((e) => e.id === entry.id)
+      if (idx !== -1) this.taxes[idx] = { ...entry }
+      this.saveLocal()
+    },
+    deleteTaxes(ids) {
+      this.taxes = this.taxes.filter((e) => !ids.includes(e.id))
+      this.selectedTaxIds = []
+      this.saveLocal()
+    },
+
+    // ─── Super CRUD (local-only) ────────────────────────────────
+    addSuper(entry) {
+      this.superannuation.push(entry)
+      this.saveLocal()
+    },
+    updateSuper(entry) {
+      const idx = this.superannuation.findIndex((e) => e.id === entry.id)
+      if (idx !== -1) this.superannuation[idx] = { ...entry }
+      this.saveLocal()
+    },
+    deleteSupers(ids) {
+      this.superannuation = this.superannuation.filter((e) => !ids.includes(e.id))
+      this.selectedSuperIds = []
+      this.saveLocal()
+    },
+
     // ─── Category CRUD ──────────────────────────────────────────
+    async createTab(name, color) {
+      const tab = { id: crypto.randomUUID(), name, color }
+      this.tabs.push(tab)
+      await this.fbSaveTab(tab)
+      this.saveLocal()
+      return tab
+    },
+    async deleteCategories(ids) {
+      for (const id of ids) {
+        const exps = this.expenses.filter((e) => e.tabId === id)
+        this.tabs = this.tabs.filter((t) => t.id !== id)
+        this.expenses = this.expenses.filter((e) => e.tabId !== id)
+        if (this.isFirebase) {
+          for (const exp of exps) this.fbDeleteExpense(exp.id).catch(() => {})
+          this.fbDeleteTab(id).catch(() => {})
+        }
+      }
+      if (ids.includes(this.activeTab)) this.activeTab = 'overview'
+      this.saveLocal()
+    },
+
     async renameCategory(tabId, newName) {
       const tab = this.tabs.find((t) => t.id === tabId)
       if (!tab) return
@@ -342,6 +411,68 @@ export const useAppStore = defineStore('app', {
       } else {
         this.selectedMonth++
       }
+    },
+
+    // ─── AI summary ────────────────────────────────────────────────
+    getExpenseSummary() {
+      const total = this.expenses.reduce((s, e) => s + e.amount, 0)
+      const now = new Date()
+      const thisMonth = this.expenses
+        .filter((e) => {
+          const d = new Date(e.date)
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+        })
+        .reduce((s, e) => s + e.amount, 0)
+      const byTab = this.tabs.map((t) => ({
+        category: t.name,
+        total: this.expenses.filter((e) => e.tabId === t.id).reduce((s, e) => s + e.amount, 0),
+        count: this.expenses.filter((e) => e.tabId === t.id).length,
+      }))
+      const recent = [...this.expenses]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5)
+        .map((e) => ({
+          desc: e.desc,
+          amount: e.amount,
+          date: e.date,
+          category: this.tabs.find((t) => t.id === e.tabId)?.name,
+        }))
+      return JSON.stringify({
+        totalAllTime: total.toFixed(2),
+        thisMonth: thisMonth.toFixed(2),
+        categories: byTab,
+        recentTransactions: recent,
+        totalTransactions: this.expenses.length,
+      })
+    },
+
+    // ─── CSV Export ──────────────────────────────────────────────
+    exportCSV() {
+      const me = filterByMonth(this.expenses, this.selectedMonth, this.selectedYear)
+      const activeTab = this.tabs.find((t) => t.id === this.activeTab)
+      const list = activeTab ? me.filter((e) => e.tabId === activeTab.id) : me
+      if (list.length === 0) return 0
+      const esc = (v) => {
+        const s = String(v ?? '')
+        return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
+      }
+      const lines = [['Date', 'Description', 'Amount', 'Category', 'Note'].map(esc).join(',')]
+      for (const e of [...list].sort((a, b) => new Date(a.date) - new Date(b.date))) {
+        const cat = this.tabs.find((t) => t.id === e.tabId)?.name || ''
+        lines.push([e.date, e.desc, e.amount.toFixed(2), cat, e.note || ''].map(esc).join(','))
+      }
+      const label = getMonthDisplayName(this.selectedMonth, this.selectedYear).replace(/\s+/g, '-')
+      const scope = activeTab ? activeTab.name.replace(/[^\w.-]+/g, '-') : 'All-Categories'
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Spendly-${label}-${scope}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2500)
+      return list.length
     },
 
     // ─── Logout ──────────────────────────────────────────────────────

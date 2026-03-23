@@ -24,6 +24,9 @@
       <button class="btn-ghost" title="Delete Categories" @click="$emit('open-delete-categories-modal')">
         <Trash2 :size="16" :stroke-width="1.75" />
       </button>
+      <button class="btn-ghost" title="AI Assistant" @click="$emit('toggle-chat')">
+        <Bot :size="16" :stroke-width="1.75" />
+      </button>
       <button class="btn-ghost" title="Log out" @click="store.logout()">
         <LogOut :size="16" :stroke-width="1.75" />
       </button>
@@ -34,7 +37,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
-import { Import, Download, Calendar, Plus, Trash2, LogOut } from 'lucide-vue-next'
+import { Import, Download, Calendar, Plus, Trash2, Bot, LogOut } from 'lucide-vue-next'
 
 defineEmits([
   'open-csv-modal',
